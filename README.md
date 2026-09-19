@@ -3,7 +3,8 @@
 Bun + React + shadcn/ui + Drizzle ORM over `bun:sqlite`. One process serves the
 frontend and the API. Mobile-shaped UI, demoed from a laptop browser.
 
-Localhost only — not built to deploy, and always running on real data.
+Localhost only — not built to deploy. The frontend runs on fixtures by default so it
+never waits on the API; `?mock=0` switches it to real data from `data.db`.
 
 ## Run
 
@@ -30,7 +31,7 @@ bun run db:reset   # delete data.db and its WAL sidecars (stop the server first)
 The split is by **directory**, so two people almost never touch the same file.
 
 ```
-shared/api.ts     ← BOTH. The contract. Agree early, change loudly.
+shared/api.ts     ← FRONTEND owns it. The contract. Backend implements it.
 server/           ← backend person
   schema.ts         Drizzle table definitions — single source of truth for the DB
   db.ts             connection (bun:sqlite wrapped in Drizzle)
@@ -40,6 +41,7 @@ server/           ← backend person
   seed.ts           sample rows
 src/              ← frontend person
   api.ts            typed client — the ONLY file that calls fetch
+  mocks/            fixture-backed stand-in for the whole backend
   App.tsx           shell
   components/       screens  ← you live here
   components/ui/    shadcn primitives (generated; don't hand-edit)
@@ -69,17 +71,24 @@ feature. Say it out loud before you do it.
 
 ## Working in parallel
 
-Both people run their own server against their own `data.db`. The schema is created on
-first boot, so the frontend is never blocked: `bun run db:seed` gives you real rows to
-build screens against before anyone has written a feature.
+Both people run their own server against their own `data.db`. The frontend is never
+blocked on the API: it runs on the fixtures in `src/mocks/` by default, so whole screens
+get built and demoed before a single handler exists. Add `?mock=0` to the URL to point
+the same build at the real backend.
+
+`shared/api.ts` is the frontend's file. It declares what the UI needs; the backend
+catches up. A field in the contract with no column behind it is a to-do, not a bug — so
+don't shrink the contract to match the server.
 
 Adding an endpoint:
 
-1. Add the types to `shared/api.ts` (and a path if it's a new URL).
-2. Backend: add a handler in `server/routes.ts`, register it in `server/index.ts`.
-3. Frontend: add one exported function in `src/api.ts`.
+1. Frontend: add the types and the `ApiClient` operation to `shared/api.ts` (and a path
+   if it's a new URL).
+2. Frontend: add the fixture to `src/mocks/data.ts`, implement it in
+   `src/mocks/client.ts` and `src/api.ts`. The screen is buildable now.
+3. Backend: add a handler in `server/routes.ts`, register it in `server/index.ts`.
 
-Steps 2 and 3 are independent once step 1 is merged.
+Step 3 can land hours later. Nothing waits on it.
 
 ## Notes
 

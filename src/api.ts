@@ -1,13 +1,20 @@
 /**
- * The only frontend file that knows HTTP exists.
+ * The only frontend file that knows HTTP exists — and the switch between the real
+ * backend and the fixtures.
  *
  * Components import these functions and get typed `Item`s back. They cannot see
- * URLs, fetch, status codes, or SQL — so the backend can reshape any of that
- * without touching a component.
+ * URLs, fetch, status codes, SQL, or whether the data came from `data.db` or
+ * `src/mocks/` — so the backend can reshape any of that, or not exist yet, without
+ * touching a component.
+ *
+ * Both clients implement `ApiClient` from the contract, so they cannot drift apart.
+ * Which one is live comes from the URL — see `src/mocks/enabled.ts`.
  */
 
-import type { ApiError, CreateItemBody, Item, UpdateItemBody } from "../shared/api";
+import type { ApiClient, ApiError, CreateItemBody, Item, UpdateItemBody } from "../shared/api";
 import { paths } from "../shared/api";
+import { mockClient } from "./mocks/client";
+import { USE_MOCKS } from "./mocks/enabled";
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
@@ -24,13 +31,18 @@ const send = (method: string, body: unknown): RequestInit => ({
   body: JSON.stringify(body),
 });
 
-export const listItems = (): Promise<Item[]> => request<Item[]>(paths.items);
+const httpClient: ApiClient = {
+  listItems: () => request<Item[]>(paths.items),
 
-export const createItem = (title: string): Promise<Item> =>
-  request<Item>(paths.items, send("POST", { title } satisfies CreateItemBody));
+  createItem: title =>
+    request<Item>(paths.items, send("POST", { title } satisfies CreateItemBody)),
 
-export const toggleItem = (id: number, done: boolean): Promise<Item> =>
-  request<Item>(paths.item(id), send("PATCH", { done } satisfies UpdateItemBody));
+  toggleItem: (id, done) =>
+    request<Item>(paths.item(id), send("PATCH", { done } satisfies UpdateItemBody)),
 
-export const deleteItem = (id: number): Promise<{ id: number }> =>
-  request<{ id: number }>(paths.item(id), { method: "DELETE" });
+  deleteItem: id => request<{ id: number }>(paths.item(id), { method: "DELETE" }),
+};
+
+const client: ApiClient = USE_MOCKS ? mockClient : httpClient;
+
+export const { listItems, createItem, toggleItem, deleteItem } = client;

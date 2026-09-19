@@ -22,9 +22,8 @@ Data access goes through Drizzle ORM over `bun:sqlite`:
 - `@libsql/client` is a devDependency used only by the `drizzle-kit` CLI. Never import
   it from application code.
 
-Localhost-only by design: no deploy target, no build/static-export step, no mock or
-fixture layer. Always real data from `data.db`. Don't add any of those back without
-being asked.
+Localhost-only by design: no deploy target, no build or static-export step. Don't add
+either back without being asked.
 
 Never reference `process.env` from anything under `src/`. It is browser code — an
 unset var ships a literal `process.env.X` and the page dies with `Can't find
@@ -34,16 +33,71 @@ frontend needs comes from the server over HTTP, or from the URL.
 
 Layered on purpose so two people can work in parallel — respect the boundaries:
 
-- `shared/api.ts` — the contract (types + URL builders). Imports nothing; ships to
-  the browser. Both sides depend on it, so changing it breaks both builds.
+- `shared/api.ts` — the contract (types + URL builders + the `ApiClient` operation
+  surface). Imports nothing; ships to the browser. Both sides depend on it, so
+  changing it breaks both builds.
 - `server/` — `db.ts` (schema), `routes.ts` (handlers), `index.ts` (wiring).
   Never imports from `src/`.
 - `src/` — React. `src/api.ts` is the only file allowed to call `fetch` or know a
   URL; components import functions from it. Never imports from `server/`.
+- `src/mocks/` — the fixture-backed `ApiClient`. Frontend territory; the backend
+  person never opens it. Never imports from `server/` either.
 - `src/components/ui/` — generated shadcn primitives. Don't hand-edit.
 
 After changing `shared/api.ts`, run `bun run typecheck` — it catches drift between
 the two halves.
+
+## Who owns the contract
+
+`shared/api.ts` is **owned by the frontend**. The frontend declares the shape and the
+operations it needs; the backend's job is to catch up and serve exactly that.
+
+A field in the contract that `data.db` doesn't have yet is a backend to-do, **not** a
+frontend bug. Never edit the contract to match what the server currently returns, and
+never narrow a type or drop an operation because the handler isn't written. The
+failing typecheck is the message getting through, not damage to repair.
+
+The frontend never blocks on the API. It is built against `src/mocks/`, which
+implements the same `ApiClient` surface with hand-written fixtures. **The whole UI must
+stay reachable and demoable with the server stopped** — if a screen only works against
+a live backend, that's a bug in the screen.
+
+- `src/mocks/data.ts` — fixtures typed as the contract's domain types. **When
+  `shared/api.ts` changes, these change in the same commit.** They won't compile
+  otherwise, and that is the enforcement — not a convention anyone has to remember.
+- `src/mocks/client.ts` — the `ApiClient` implementation. Mutates an in-memory copy of
+  the fixtures so create/update/delete really work in-session and reset on reload.
+  Mirrors `server/routes.ts` where the behaviour is observable. No latency
+  simulation, no injected failures — don't add either without being asked.
+- `src/mocks/enabled.ts` — `USE_MOCKS`, read from the URL (never `process.env`).
+  Mocks are ON by default; `?mock=0` hits the real API. Hydrating against the real
+  backend for good is flipping that one default.
+
+Three compile-time guards now keep the halves honest. Run `bun run typecheck` after
+touching `shared/api.ts`:
+
+- `server/contract.ts` — a Drizzle row still satisfies `Item`.
+- `src/api.ts` — the HTTP client still satisfies `ApiClient`.
+- `src/mocks/client.ts` — the mock client still satisfies `ApiClient`.
+
+## Extending the frontend
+
+Feature descriptions arrive as long prose. Build them **inside** the existing skeleton,
+not around it — the scaffold is the spec for structure, the prose is the spec for
+behaviour.
+
+- Screens are plain components under `src/components/`, rendered by `App.tsx` inside
+  `PhoneFrame`. Design for 390×844 mobile, not desktop.
+- Components talk to `../api` only. Never `fetch`, never a URL, never `paths`, never
+  `src/mocks/` directly.
+- New data need, in this order: add the type and the operation to `ApiClient` in
+  `shared/api.ts` → add the fixture to `src/mocks/data.ts` → implement it in
+  `src/mocks/client.ts` and `src/api.ts`. The screen is fully buildable at that point;
+  the handler in `server/routes.ts` lands whenever the backend gets there.
+- `src/components/ui/` is generated shadcn. Add primitives with the CLI; don't
+  hand-edit them, and don't hand-roll a button that already exists there.
+- Don't introduce a router, a data-fetching library, or a state manager unless asked.
+  `useState` for a screen index is usually enough.
 
 Default to using Bun instead of Node.js.
 

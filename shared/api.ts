@@ -1,9 +1,11 @@
 /**
- * THE CONTRACT.
+ * THE CONTRACT — owned by the frontend.
  *
- * The only file both the frontend and backend people edit. Agree on it early,
- * then leave it alone — a change here breaks the other person's build instantly
- * (which is the point, but say it out loud before you do it).
+ * The frontend declares the shape it needs here; the backend's job is to catch up
+ * and serve exactly that. A field in this file that `data.db` doesn't have yet is a
+ * backend to-do, not a frontend bug — don't narrow it to match what the server
+ * currently returns. Changing it breaks the other half's build instantly (which is
+ * the point, but say it out loud before you do it).
  *
  * Nothing here may import from `src/` or `server/`. Types and constants only,
  * so it is safe to pull into the browser bundle.
@@ -40,3 +42,18 @@ export const routePatterns = {
   items: "/api/items",
   item: "/api/items/:id",
 } as const;
+
+/**
+ * Every operation the frontend can perform.
+ *
+ * Two implementations satisfy it — the HTTP client in `src/api.ts` and the mock
+ * client in `src/mocks/client.ts` — so they can never drift apart, and components
+ * can't tell which one they got. It doubles as the backend's to-do list: an
+ * operation here with no handler in `server/routes.ts` is work not done yet.
+ */
+export type ApiClient = {
+  listItems(): Promise<Item[]>;
+  createItem(title: string): Promise<Item>;
+  toggleItem(id: number, done: boolean): Promise<Item>;
+  deleteItem(id: number): Promise<{ id: number }>;
+};
