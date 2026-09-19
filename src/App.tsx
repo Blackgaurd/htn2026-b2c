@@ -28,7 +28,8 @@ import { RateScoreScreen } from "./components/RateScoreScreen";
 import { CompareScreen } from "./components/CompareScreen";
 import { CompareResultScreen } from "./components/CompareResultScreen";
 import { RankingsScreen } from "./components/RankingsScreen";
-import { FriendsScreen } from "./components/FriendsScreen";
+import { SavedScreen } from "./components/SavedScreen";
+import { PeopleScreen } from "./components/PeopleScreen";
 import { ProfileScreen } from "./components/ProfileScreen";
 
 type Screen =
@@ -37,9 +38,10 @@ type Screen =
   | { name: "register" }
   | { name: "home" }
   | { name: "rankings" }
-  | { name: "friends" }
+  | { name: "saved" }
   /** `userId` undefined is your own profile — the only one with a tab bar. */
   | { name: "profile"; userId?: number }
+  | { name: "people"; origin: Screen }
   | { name: "detail"; bathroomId: number; origin: Tab }
   | { name: "rate-select" }
   | { name: "rate-score"; bathroom: Bathroom }
@@ -60,8 +62,8 @@ function screenForTab(tab: Tab): Screen {
       return { name: "home" };
     case "rankings":
       return { name: "rankings" };
-    case "friends":
-      return { name: "friends" };
+    case "saved":
+      return { name: "saved" };
     case "profile":
       return { name: "profile" };
   }
@@ -74,8 +76,8 @@ function tabFor(screen: Screen): Tab | null {
       return "home";
     case "rankings":
       return "rankings";
-    case "friends":
-      return "friends";
+    case "saved":
+      return "saved";
     case "profile":
       return screen.userId === undefined ? "profile" : null;
     case "detail":
@@ -160,8 +162,16 @@ export function App() {
       case "register":
         return <RegisterScreen onDone={signedIn} onLogin={() => setScreen({ name: "login" })} />;
 
-      case "home":
-        return user ? <HomeScreen user={user} onOpen={b => openBathroom(b, "home")} /> : <LoadingScreen />;
+      case "home": {
+        const here: Screen = { name: "home" };
+        return (
+          <HomeScreen
+            onOpenBathroom={b => openBathroom(b, "home")}
+            onOpenProfile={userId => setScreen({ name: "profile", userId })}
+            onFindPeople={() => setScreen({ name: "people", origin: here })}
+          />
+        );
+      }
 
       case "detail": {
         const origin = screen.origin;
@@ -171,7 +181,6 @@ export function App() {
             onBack={() => setScreen(screenForTab(origin))}
             // Step 1 is choosing a bathroom, and it's already chosen — skip it.
             onRate={bathroom => setScreen({ name: "rate-score", bathroom })}
-            onOpenProfile={userId => setScreen({ name: "profile", userId })}
           />
         );
       }
@@ -211,34 +220,39 @@ export function App() {
           />
         );
 
+      case "saved":
+        return <SavedScreen onOpen={b => openBathroom(b, "saved")} />;
+
       case "rankings":
         return (
-          <RankingsScreen
-            onOpen={b => openBathroom(b, "rankings")}
-            onRate={() => setScreen({ name: "rate-select" })}
-          />
+          <RankingsScreen onOpen={b => openBathroom(b, "rankings")} />
         );
 
-      case "friends":
+      case "people": {
+        const origin = screen.origin;
         return (
-          <FriendsScreen
-            onOpenBathroom={id => openBathroom(id, "friends")}
+          <PeopleScreen
+            onBack={() => setScreen(origin)}
             onOpenProfile={userId => setScreen({ name: "profile", userId })}
           />
         );
+      }
 
-      case "profile":
+      case "profile": {
+        const here: Screen = { name: "profile", userId: screen.userId };
         return (
           <ProfileScreen
             userId={screen.userId}
-            onBack={screen.userId === undefined ? undefined : () => setScreen({ name: "friends" })}
+            onBack={screen.userId === undefined ? undefined : () => setScreen({ name: "home" })}
             onOpenBathroom={b => openBathroom(b, "profile")}
+            onFindPeople={() => setScreen({ name: "people", origin: here })}
             onSignedOut={() => {
               setUser(null);
               setScreen({ name: "splash" });
             }}
           />
         );
+      }
     }
   }
 }

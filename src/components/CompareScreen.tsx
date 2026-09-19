@@ -10,15 +10,14 @@
  * through at position 0 rather than showing a question with one card.
  */
 
-import { useEffect, useMemo, useState } from "react";
-import type { RankedBathroom, SubmitReviewResult } from "../../shared/api";
-import { BUCKET_LABELS, ratingsAverage } from "../../shared/api";
+import { useEffect, useState } from "react";
+import type { SubmitReviewResult, WashroomType } from "../../shared/api";
+import { BUCKET_LABELS } from "../../shared/api";
 import { listMyRankings, submitReview } from "../api";
 import type { Duel, ReviewDraft } from "../lib/duel";
 import { answerDuel, duelDone, duelOpponent, duelPosition, duelTotalRounds, skipDuel, startDuel } from "../lib/duel";
-import { buildingColor, categoryMeta, gradient, palette, scoreColor } from "../lib/display";
+import { gradient, locationOf, palette } from "../lib/display";
 import { BackButton, LoadingScreen, Notice, ScoreChip, Spinner, WashroomBadge } from "./chrome";
-import { CheckIcon } from "./icons";
 
 export function CompareScreen({
   draft,
@@ -58,17 +57,16 @@ export function CompareScreen({
     setSubmitting(true);
     submitReview({
       bathroom_id: draft.bathroom.id,
-      ratings: draft.ratings,
+      rating: draft.rating,
+      details: draft.details,
+      photos: draft.photos,
       note: draft.note,
-      bucket: draft.bucket,
       position: duelPosition(duel),
     }).then(onDone, (err: unknown) => {
       setError(err instanceof Error ? err.message : String(err));
       setSubmitting(false);
     });
   }, [duel, submitting, draft, onDone]);
-
-  const impression = useMemo(() => ratingsAverage(draft.ratings), [draft.ratings]);
 
   if (error) {
     return (
@@ -145,25 +143,18 @@ export function CompareScreen({
 
       <div className="flex flex-1 flex-col justify-center gap-3 px-5 pb-4">
         <DuelCard
-          title={draft.bathroom.location}
-          building={draft.bathroom.building}
-          floor={draft.bathroom.floor}
+          title={locationOf(draft.bathroom)}
           washroomType={draft.bathroom.washroom_type}
           chip={<ScoreChip score={null} label="Rating now" />}
-          highlights={topCategories(draft)}
-          impression={impression}
           chosen={picked === "new"}
           dimmed={picked === "old"}
           onChoose={() => choose("new")}
         />
 
         <DuelCard
-          title={opponent.bathroom.location}
-          building={opponent.bathroom.building}
-          floor={opponent.bathroom.floor}
+          title={locationOf(opponent.bathroom)}
           washroomType={opponent.bathroom.washroom_type}
           chip={<ScoreChip score={opponent.score} />}
-          highlights={[]}
           rank={opponent.rank}
           chosen={picked === "old"}
           dimmed={picked === "new"}
@@ -181,38 +172,18 @@ export function CompareScreen({
   );
 }
 
-/** The two categories the user felt most strongly about, as a preview on the card. */
-function topCategories(draft: ReviewDraft): { icon: string; label: string; value: number }[] {
-  return categoryMeta
-    .map(category => ({
-      icon: category.icon,
-      label: category.label,
-      value: draft.ratings[category.key] * 2,
-    }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 2);
-}
-
 function DuelCard({
   title,
-  building,
-  floor,
   washroomType,
   chip,
-  highlights,
-  impression,
   rank,
   chosen,
   dimmed,
   onChoose,
 }: {
   title: string;
-  building: "E5" | "E7";
-  floor: number;
-  washroomType: RankedBathroom["bathroom"]["washroom_type"];
+  washroomType: WashroomType;
   chip: React.ReactNode;
-  highlights: { icon: string; label: string; value: number }[];
-  impression?: number;
   rank?: number;
   chosen: boolean;
   dimmed: boolean;
@@ -235,92 +206,22 @@ function DuelCard({
           background: chosen ? gradient.wash : "white",
           border: chosen ? `2.5px solid ${palette.periwinkle}` : "2.5px solid transparent",
           boxShadow: chosen ? "0 8px 32px #7B8CDE33" : "0 2px 16px #0000000D",
-          overflow: "hidden",
         }}
       >
-        <div
-          style={{
-            height: 6,
-            background: chosen ? "linear-gradient(90deg, #7B8CDE, #9B78D4)" : `${buildingColor(building)}40`,
-          }}
-        />
-
         <div className="p-5">
-          <div className="mb-3 flex items-center gap-2">
-            <div
-              className="flex items-center justify-center rounded-xl"
-              style={{
-                width: 40,
-                height: 40,
-                background: `${buildingColor(building)}20`,
-                color: buildingColor(building),
-                fontSize: 13,
-                fontWeight: 800,
-              }}
-            >
-              {building}
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span style={{ fontSize: 12, fontWeight: 600, color: palette.muted }}>Floor {floor}</span>
-                <WashroomBadge type={washroomType} />
-                {rank !== undefined && (
-                  <span style={{ fontSize: 11, fontWeight: 700, color: palette.faint }}>#{rank} on your list</span>
-                )}
-              </div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: palette.charcoal, lineHeight: 1.2, marginTop: 2 }}>
-                {title}
-              </div>
-            </div>
-          </div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: palette.charcoal, lineHeight: 1.3 }}>{title}</div>
 
-          <div className="flex gap-2">
-            {highlights.map(highlight => (
-              <div
-                key={highlight.label}
-                className="flex flex-1 items-center gap-1.5 rounded-xl px-3 py-1.5"
-                style={{ background: palette.bg }}
-              >
-                <span style={{ fontSize: 13 }}>{highlight.icon}</span>
-                <div>
-                  <div style={{ fontSize: 9, fontWeight: 600, color: palette.faint, letterSpacing: "0.05em" }}>
-                    {highlight.label.toUpperCase()}
-                  </div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: scoreColor(highlight.value) }}>
-                    {highlight.value.toFixed(1)}
-                  </div>
-                </div>
-              </div>
-            ))}
-            {impression !== undefined && (
-              <div className="flex items-center gap-1.5 rounded-xl px-3 py-1.5" style={{ background: palette.bg }}>
-                <div>
-                  <div style={{ fontSize: 9, fontWeight: 600, color: palette.faint, letterSpacing: "0.05em" }}>
-                    FIRST TAKE
-                  </div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: scoreColor(impression) }}>
-                    {impression.toFixed(1)}
-                  </div>
-                </div>
-              </div>
+          <div className="mt-3 flex items-center gap-2">
+            <WashroomBadge type={washroomType} />
+            {rank !== undefined && (
+              <span style={{ fontSize: 11, fontWeight: 600, color: palette.faint }}>#{rank} on your list</span>
             )}
-            <div
-              className="flex items-center justify-center rounded-xl px-3 py-1.5"
-              style={{ background: palette.bg, minWidth: 56 }}
-            >
-              {chip}
-            </div>
+            <span className="ml-auto">{chip}</span>
           </div>
 
           {chosen && (
             <div className="mt-3 flex items-center gap-2 pt-3" style={{ borderTop: `1px solid ${palette.border}` }}>
-              <div
-                className="flex items-center justify-center rounded-full"
-                style={{ width: 22, height: 22, background: "#3DBF82" }}
-              >
-                <CheckIcon />
-              </div>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#3DBF82" }}>Your pick</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: palette.periwinkle }}>✓ Your pick</span>
             </div>
           )}
         </div>

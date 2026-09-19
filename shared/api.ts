@@ -25,26 +25,57 @@ export type WashroomType = "female" | "male" | "universal";
 /** What a user says they use. Same three values; it gates what they can see. */
 export type WashroomPref = WashroomType;
 
-/** The three tiers a review is sorted into before the comparison duel runs. */
-export type Bucket = "loved" | "fine" | "never";
+/**
+ * The one thing a user types in: how many stars, 1–5.
+ *
+ * There are no per-category ratings. A bathroom has exactly one score, and this
+ * is the only input that feeds it.
+ */
+export type Rating = 1 | 2 | 3 | 4 | 5;
 
-/** The five things a review scores, 1–5 each. */
-export type RatingCategory =
+/**
+ * The optional detail ratings on a review.
+ *
+ * These are **notes about the room, not inputs to the score.** A bathroom's score
+ * is relative — it comes out of where the comparison duel puts it against
+ * everything else you've rated — so averaging these in would be two scoring
+ * systems arguing. They're here because "is there soap" is worth recording and
+ * worth reading, not because they add up to anything.
+ */
+export type ReviewDetailKey =
   | "cleanliness"
   | "accessibility"
+  | "smell"
   | "hygiene"
   | "privacy"
-  | "smell";
+  | "products";
 
-export type Ratings = { [K in RatingCategory]: number };
+export type ReviewDetails = Partial<Record<ReviewDetailKey, Rating>>;
 
-export const RATING_CATEGORIES: readonly RatingCategory[] = [
+/** Asked of every washroom. */
+const UNIVERSAL_DETAILS: readonly ReviewDetailKey[] = [
   "cleanliness",
   "accessibility",
+  "smell",
   "hygiene",
   "privacy",
-  "smell",
 ] as const;
+
+/**
+ * Which details to ask about. Sanitary products are only stocked in women's
+ * washrooms, so asking anywhere else produces a rating of a thing that was never
+ * meant to be there.
+ */
+export function detailKeysFor(type: WashroomType): ReviewDetailKey[] {
+  return type === "female" ? [...UNIVERSAL_DETAILS, "products"] : [...UNIVERSAL_DETAILS];
+}
+
+/**
+ * The band a review's score is drawn from. Derived from the star rating by
+ * `bucketForRating()` — never asked for separately, and never stored as a second
+ * opinion that could disagree with the stars.
+ */
+export type Bucket = "loved" | "fine" | "never";
 
 // ─── The visibility rule ──────────────────────────────────────────────────────
 
@@ -91,6 +122,18 @@ export const BUCKET_LABELS: Record<Bucket, string> = {
 };
 
 /**
+ * Stars decide the band; the duel decides the place inside it.
+ *
+ * Both halves must map identically or a review's score would change depending on
+ * who computed it, so this lives in the contract next to the bands themselves.
+ */
+export function bucketForRating(rating: Rating): Bucket {
+  if (rating >= 4) return "loved";
+  if (rating === 3) return "fine";
+  return "never";
+}
+
+/**
  * `position` is 0-based and best-first within the bucket; `total` is how many
  * reviews share that bucket once this one is in it. A lone review sits mid-band so
  * it has somewhere to move in both directions.
@@ -105,12 +148,6 @@ export function scoreForPosition(bucket: Bucket, position: number, total: number
 
 export function round1(n: number): number {
   return Math.round(n * 10) / 10;
-}
-
-/** The average of the five categories, on the same 0–10 scale as a score. */
-export function ratingsAverage(ratings: Ratings): number {
-  const sum = RATING_CATEGORIES.reduce((acc, key) => acc + ratings[key], 0);
-  return round1((sum / RATING_CATEGORIES.length) * 2);
 }
 
 // ─── Stored rows ──────────────────────────────────────────────────────────────
@@ -155,12 +192,20 @@ export type ReviewRow = {
   id: number;
   user_id: number;
   bathroom_id: number;
-  cleanliness: number;
-  accessibility: number;
-  hygiene: number;
-  privacy: number;
-  smell: number;
+  /** 1–5 stars. The only input that decides which band the score comes from. */
+  rating: Rating;
+  /** Optional per-aspect notes. Never folded into the score — see `ReviewDetails`. */
+  cleanliness: Rating | null;
+  accessibility: Rating | null;
+  smell: Rating | null;
+  hygiene: Rating | null;
+  privacy: Rating | null;
+  /** Women's washrooms only; `null` everywhere else. */
+  products: Rating | null;
+  /** Data URLs, newest last. Capped at `MAX_REVIEW_PHOTOS`. */
+  photos: string[];
   note: string | null;
+  /** Derived from `rating`; stored so a band change is queryable. */
   bucket: Bucket;
   /** 0-based, best-first, within this user's bucket. The thing rank is made of. */
   position: number;
@@ -191,8 +236,8 @@ export type RankedBathroom = {
   rank: number;
   bucket: Bucket;
   position: number;
-  /** The 1–5 category ratings behind it, so the list can re-sort without refetching. */
-  ratings: Ratings;
+  /** The stars behind it. One number, because a bathroom has one score. */
+  rating: Rating;
 };
 
 export type FriendReview = {
@@ -249,11 +294,16 @@ export type RegisterBody = {
 
 export type LoginBody = { email: string; password: string };
 
+export const MAX_REVIEW_PHOTOS = 2;
+
 export type SubmitReviewBody = {
   bathroom_id: number;
-  ratings: Ratings;
+  rating: Rating;
+  /** Optional, and optional per key — a half-filled set is fine. */
+  details: ReviewDetails;
+  /** Data URLs. At most `MAX_REVIEW_PHOTOS`. */
+  photos: string[];
   note: string | null;
-  bucket: Bucket;
   /**
    * Where the duel decided this belongs inside its bucket — 0-based, best first.
    * The screen gets this from `src/lib/duel.ts`; it is never a raw user input.

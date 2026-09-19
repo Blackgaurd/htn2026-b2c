@@ -9,7 +9,7 @@
  * and inline bar fills, where a class name can't reach.
  */
 
-import type { Bathroom, Building, WashroomType } from "../../shared/api";
+import type { Bathroom, WashroomType } from "../../shared/api";
 import { fullLocation } from "../../shared/catalogue";
 
 export const palette = {
@@ -21,6 +21,7 @@ export const palette = {
   border: "#ECEAE4",
   periwinkle: "#7B8CDE",
   periwinkleLight: "#EEF0FB",
+  periwinkleMid: "#C5CBEF",
   violet: "#9B78D4",
   violetLight: "#F0EBF9",
   mint: "#5EC4A8",
@@ -42,11 +43,11 @@ export const gradient = {
  */
 export const washroomMeta: Record<
   WashroomType,
-  { label: string; short: string; color: string; bg: string; icon: string }
+  { label: string; color: string; bg: string }
 > = {
-  female: { label: "Women's", short: "W", color: "#E87DB8", bg: "#FDE8F3", icon: "♀" },
-  male: { label: "Men's", short: "M", color: "#5B8FE8", bg: "#EBF1FD", icon: "♂" },
-  universal: { label: "All-Gender", short: "U", color: "#9B78D4", bg: "#F0EBF9", icon: "⚧" },
+  female: { label: "Women's", color: "#C2568F", bg: "#FBEAF3" },
+  male: { label: "Men's", color: "#4A7BC8", bg: "#EAF1FC" },
+  universal: { label: "All-Gender", color: "#7B62B8", bg: "#EFEBF8" },
 };
 
 /** What each preference gets you, spelled out on the register screen. */
@@ -56,33 +57,45 @@ export const prefBlurb: Record<WashroomType, string> = {
   universal: "See All-Gender washrooms only",
 };
 
+/**
+ * Green, yellow, red. Three tiers and no more — a score is the one number in the
+ * app, so it gets one colour scale and nothing else competes with it.
+ */
+export const scoreScale = {
+  good: "#2FA36B",
+  ok: "#D99414",
+  bad: "#D2544F",
+} as const;
+
 export function scoreColor(score: number): string {
-  if (score >= 9) return "#3DBF82";
-  if (score >= 7) return "#5B8FE8";
-  if (score >= 5) return "#F5A623";
-  return "#ADADBE";
+  if (score >= 7) return scoreScale.good;
+  if (score >= 4) return scoreScale.ok;
+  return scoreScale.bad;
 }
 
 export function scoreLabel(score: number): string {
-  if (score >= 9) return "Excellent";
   if (score >= 7) return "Good";
-  if (score >= 5) return "Okay";
-  return "Poor";
+  if (score >= 4) return "Okay";
+  return "Bad";
 }
 
-export const buildingColor = (building: Building): string =>
-  building === "E5" ? "#7B8CDE" : "#5EC4A8";
+/**
+ * Labels for the optional detail ratings.
+ *
+ * No icons: a broom, a wheelchair, a bottle and a padlock in a column was four
+ * pictures for four words that were already there.
+ */
+export const detailMeta: Record<string, { label: string; hint: string }> = {
+  cleanliness: { label: "Cleanliness", hint: "How clean was it overall?" },
+  accessibility: { label: "Accessibility", hint: "Ease of access and navigation" },
+  smell: { label: "Smell", hint: "Odour level and ventilation" },
+  hygiene: { label: "Hygiene", hint: "Soap, paper, hand dryers" },
+  privacy: { label: "Privacy", hint: "Stall gaps, doors, noise" },
+  products: { label: "Sanitary products", hint: "Stocked and available" },
+};
 
-/** The five rating categories as the UI presents them, in order. */
-export const categoryMeta = [
-  { key: "cleanliness", label: "Cleanliness", icon: "🧹", desc: "How clean was it overall?" },
-  { key: "accessibility", label: "Accessibility", icon: "♿", desc: "Ease of access and navigation" },
-  { key: "hygiene", label: "Hygiene Products", icon: "🧴", desc: "Soap, paper, hand dryers" },
-  { key: "privacy", label: "Privacy", icon: "🔒", desc: "Stall quality, door gaps, noise" },
-  { key: "smell", label: "Smell", icon: "🌿", desc: "Odour level and ventilation" },
-] as const;
-
-export const STAR_LABELS = ["", "Poor", "Fair", "Good", "Great", "Perfect"] as const;
+/** What each star means while you're picking one. */
+export const STAR_LABELS = ["", "Awful", "Bad", "Fine", "Great", "Perfect"] as const;
 
 /** "E7 3rd Floor — North Wing, beside the stairwell" */
 export const locationOf = (bathroom: Bathroom): string => fullLocation(bathroom);

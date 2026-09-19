@@ -25,37 +25,61 @@ import { RateScoreScreen } from "./components/RateScoreScreen";
 import { CompareScreen } from "./components/CompareScreen";
 import { CompareResultScreen } from "./components/CompareResultScreen";
 import { RankingsScreen } from "./components/RankingsScreen";
-import { FriendsScreen } from "./components/FriendsScreen";
+import { SavedScreen } from "./components/SavedScreen";
+import { PeopleScreen } from "./components/PeopleScreen";
 import { ProfileScreen } from "./components/ProfileScreen";
 import { App } from "./App";
 
 const noop = () => {};
-const text = (element: ReactElement) => renderToString(element).replaceAll("<!-- -->", "");
+/**
+ * Rendered markup, read the way a user reads the page: React's `<!-- -->` text
+ * separators removed and entities decoded, so an assertion can say "don't"
+ * instead of "don&#x27;t".
+ */
+const text = (element: ReactElement) =>
+  renderToString(element)
+    .replaceAll("<!-- -->", "")
+    .replaceAll("&#x27;", "'")
+    .replaceAll("&#39;", "'")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&amp;", "&");
 
 const user = await mockClient.login({ email: "a24chen@uwaterloo.ca", password: "pupi" });
 const bathrooms = await mockClient.listBathrooms();
 const bathroom = bathrooms[0]!;
-const ratings = { cleanliness: 5, accessibility: 4, hygiene: 5, privacy: 4, smell: 5 };
 const fresh = bathrooms.find(b => b.id === 11)!;
 const result = await mockClient.submitReview({
-  bathroom_id: fresh.id, ratings, note: "A note.", bucket: "loved", position: 1,
+  bathroom_id: fresh.id, rating: 5, details: {}, photos: [], note: "A note.", position: 1,
 });
-const draft = { bathroom, ratings, note: null, bucket: "loved" as const };
+const draft = {
+  bathroom,
+  rating: 5 as const,
+  details: {},
+  photos: [],
+  note: null,
+  bucket: "loved" as const,
+};
 
 const screens: [string, () => ReactElement][] = [
   ["Splash", () => <SplashScreen onRegister={noop} onLogin={noop} />],
   ["Login", () => <LoginScreen onDone={noop} onRegister={noop} />],
   ["Register", () => <RegisterScreen onDone={noop} onLogin={noop} />],
-  ["Home", () => <HomeScreen user={user} onOpen={noop} />],
-  ["Detail", () => <DetailScreen bathroomId={bathroom.id} onBack={noop} onRate={noop} onOpenProfile={noop} />],
+  ["Home", () => <HomeScreen onOpenBathroom={noop} onOpenProfile={noop} onFindPeople={noop} />],
+  ["Detail", () => <DetailScreen bathroomId={bathroom.id} onBack={noop} onRate={noop} />],
   ["RateSelect", () => <RateSelectScreen onBack={noop} onPick={noop} />],
   ["RateScore", () => <RateScoreScreen bathroom={bathroom} onBack={noop} onContinue={noop} />],
   ["Compare", () => <CompareScreen draft={draft} onBack={noop} onDone={noop} />],
   ["CompareResult", () => <CompareResultScreen result={result} onDone={noop} onSeeRankings={noop} />],
-  ["Rankings", () => <RankingsScreen onOpen={noop} onRate={noop} />],
-  ["Friends", () => <FriendsScreen onOpenBathroom={noop} onOpenProfile={noop} />],
-  ["Profile (me)", () => <ProfileScreen onOpenBathroom={noop} onSignedOut={noop} />],
-  ["Profile (other)", () => <ProfileScreen userId={3} onBack={noop} onOpenBathroom={noop} onSignedOut={noop} />],
+  ["Rankings", () => <RankingsScreen onOpen={noop} />],
+  ["Saved", () => <SavedScreen onOpen={noop} />],
+  ["People", () => <PeopleScreen onBack={noop} onOpenProfile={noop} />],
+  ["Profile (me)", () => <ProfileScreen onOpenBathroom={noop} onSignedOut={noop} onFindPeople={noop} />],
+  [
+    "Profile (other)",
+    () => <ProfileScreen userId={3} onBack={noop} onOpenBathroom={noop} onSignedOut={noop} onFindPeople={noop} />,
+  ],
   ["App", () => <App />],
 ];
 
@@ -66,7 +90,7 @@ for (const [name, render] of screens) {
   });
 }
 
-test("the result screen actually paints the score and the podium", () => {
+test("the result screen paints the score and where it landed", () => {
   // React separates adjacent text nodes with `<!-- -->` in SSR output; strip them
   // so assertions read as the user sees the text, not as React emits it.
   const html = text(<CompareResultScreen result={result} onDone={noop} onSeeRankings={noop} />);
@@ -74,13 +98,24 @@ test("the result screen actually paints the score and the podium", () => {
   expect(html).toContain("YOUR SCORE");
   expect(html).toContain("NEW");
   expect(html).toContain(`#${result.rank} of ${result.rankings.length}`);
+  // The leaderboard is gone: no medals anywhere.
+  for (const medal of ["🥇", "🥈", "🥉"]) expect(html).not.toContain(medal);
 });
 
-test("the rate screen paints all five categories and the three buckets", () => {
+test("the rate screen leads with one question and files details under optional", () => {
   const html = text(<RateScoreScreen bathroom={bathroom} onBack={noop} onContinue={noop} />);
-  for (const label of ["Cleanliness", "Accessibility", "Hygiene Products", "Privacy", "Smell"]) {
-    expect(html).toContain(label);
-  }
-  for (const label of ["Loved it", "It was fine", "Never again"]) expect(html).toContain(label);
-  expect(html).toContain("Rate all 5 categories to continue");
+  expect(html).toContain("How was it?");
+  expect(html).toContain("Pick a rating to continue");
+  expect(html).toContain("Rate the details");
+  expect(html).toContain("these don't affect the score");
+  expect(html).toContain("Photos");
+  // Collapsed by default, so the screen asks one thing first.
+  expect(html).not.toContain("Cleanliness");
+});
+
+test("a bathroom row names itself once — no building tile, no 'Floor N' filler", () => {
+  const html = text(<RateScoreScreen bathroom={bathroom} onBack={noop} onContinue={noop} />);
+  // The location line already reads "E5 3rd Floor — …", so nothing repeats it.
+  expect(html).toContain(bathroom.location);
+  expect(html).not.toContain(`Floor ${bathroom.floor}<`);
 });

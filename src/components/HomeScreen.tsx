@@ -1,30 +1,37 @@
 /**
- * Browse — the catalogue, already gender-filtered by the API.
+ * Home — the feed, with search layered over it.
  *
- * Note what this screen does NOT do: it never checks `washroom_pref` itself.
- * `listBathrooms()` returns what this user is allowed to see and nothing else, so
- * there is no filter here to forget.
+ * Search doesn't replace the page any more: results drop into a panel under the
+ * field and the feed stays where it was, so looking something up doesn't cost you
+ * your place. Tapping away, or clearing the field, puts it back.
  *
- * Each row shows your score when you have one, and the crowd's when you don't —
- * the two are never the same number and are never presented as if they were.
+ * No building filter and no floor chips. Not every building has floors worth
+ * filtering, and typing the name is faster than narrowing a list twice.
  */
 
 import { useMemo, useState } from "react";
-import type { Bathroom, RankedBathroom, User } from "../../shared/api";
-import { listBathrooms, listMyRankings } from "../api";
-import { CATALOGUE_FLOORS } from "../../shared/catalogue";
+import type { Bathroom, RankedBathroom } from "../../shared/api";
+import { listBathrooms, listFeed, listMyRankings } from "../api";
 import { locationOf, palette } from "../lib/display";
 import { useAsync } from "../lib/useAsync";
-import { BathroomRow, Chip, LoadingScreen, Notice, ScoreChip, SearchField } from "./chrome";
+import { EmptyState, LoadingScreen, Notice, ScorePair, SearchField, WashroomBadge } from "./chrome";
+import { FeedCard } from "./FeedCard";
 
-type Sort = "score" | "location";
+const MAX_RESULTS = 6;
 
-export function HomeScreen({ user, onOpen }: { user: User; onOpen: (bathroom: Bathroom) => void }) {
+export function HomeScreen({
+  onOpenBathroom,
+  onOpenProfile,
+  onFindPeople,
+}: {
+  onOpenBathroom: (bathroom: Bathroom | number) => void;
+  onOpenProfile: (userId: number) => void;
+  onFindPeople: () => void;
+}) {
   const [search, setSearch] = useState("");
-  const [building, setBuilding] = useState<"all" | "E5" | "E7">("all");
-  const [floor, setFloor] = useState<number | null>(null);
-  const [sort, setSort] = useState<Sort>("score");
+  const [focused, setFocused] = useState(false);
 
+  const feed = useAsync(() => listFeed(), []);
   const bathrooms = useAsync(() => listBathrooms(), []);
   const rankings = useAsync(() => listMyRankings(), []);
 
@@ -34,128 +41,118 @@ export function HomeScreen({ user, onOpen }: { user: User; onOpen: (bathroom: Ba
     return map;
   }, [rankings.data]);
 
-  const filtered = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    const rows = (bathrooms.data ?? []).filter(b => {
-      if (building !== "all" && b.building !== building) return false;
-      if (floor !== null && b.floor !== floor) return false;
-      if (query && !locationOf(b).toLowerCase().includes(query)) return false;
-      return true;
-    });
+  const query = search.trim().toLowerCase();
+  const results = useMemo(() => {
+    if (!query) return [];
+    return (bathrooms.data ?? []).filter(b => locationOf(b).toLowerCase().includes(query));
+  }, [bathrooms.data, query]);
 
-    return rows.sort((a, b) => {
-      if (sort === "location") return 0; // listBathrooms already returns building/floor order
-      const left = myScores.get(a.id)?.score ?? a.global_score ?? -1;
-      const right = myScores.get(b.id)?.score ?? b.global_score ?? -1;
-      return right - left;
-    });
-  }, [bathrooms.data, building, floor, search, sort, myScores]);
-
-  const rated = rankings.data ?? [];
-  const average = rated.length
-    ? (rated.reduce((sum, entry) => sum + entry.score, 0) / rated.length).toFixed(1)
-    : "—";
-
-  if (bathrooms.loading && !bathrooms.data) return <LoadingScreen />;
+  const showResults = query.length > 0 && focused;
 
   return (
     <div className="flex h-full flex-col" style={{ background: palette.bg }}>
-      <div className="px-5 pb-4 pt-14">
-        <div className="mb-5 flex items-center justify-between">
-          <div>
-            <p style={{ color: palette.muted, fontSize: 13, fontWeight: 500 }}>
-              {greeting()}, {user.display_name.split(" ")[0]} 👋
-            </p>
-            <h1 style={{ fontSize: 24, fontWeight: 800, color: palette.charcoal, letterSpacing: "-0.5px", marginTop: 2 }}>
-              p<span style={{ color: palette.periwinkle }}>ü</span>pi
-            </h1>
-          </div>
-          <div className="flex gap-2">
-            <Stat value={String(rated.length)} label="Rated" color={palette.periwinkle} />
-            <Stat value={average} label="Your avg" color="#3DBF82" />
-          </div>
+      <div className="relative z-20 px-5 pb-3 pt-14">
+        <h1 style={{ fontSize: 24, fontWeight: 800, color: palette.charcoal, letterSpacing: "-0.5px" }}>
+          p<span style={{ color: palette.periwinkle }}>ü</span>pi
+        </h1>
+
+        <div className="mt-3">
+          <SearchField
+            value={search}
+            onChange={setSearch}
+            placeholder="Search for a washroom..."
+            onFocus={() => setFocused(true)}
+          />
         </div>
 
-        <SearchField value={search} onChange={setSearch} placeholder="Search bathrooms..." />
-
-        <div className="phone-scroll mt-3 flex gap-2 overflow-x-auto pb-1">
-          {(["all", "E5", "E7"] as const).map(option => (
-            <Chip key={option} active={building === option} onClick={() => setBuilding(option)}>
-              {option === "all" ? "All" : option}
-            </Chip>
-          ))}
-          <div style={{ width: 1, background: palette.border, margin: "4px 0", flexShrink: 0 }} />
-          {CATALOGUE_FLOORS.map(level => (
-            <Chip
-              key={level}
-              active={floor === level}
-              activeColor={palette.charcoal}
-              onClick={() => setFloor(floor === level ? null : level)}
+        {showResults && (
+          <>
+            {/* Tap-away target, under the panel and over everything else. */}
+            <button
+              className="fixed inset-0 z-10 cursor-default"
+              aria-label="Close search results"
+              onClick={() => setFocused(false)}
+            />
+            <div
+              className="phone-scroll absolute left-5 right-5 z-20 mt-2 overflow-y-auto"
+              style={{
+                maxHeight: 340,
+                background: "white",
+                borderRadius: 16,
+                border: `1px solid ${palette.border}`,
+                boxShadow: "0 12px 40px #00000022",
+              }}
             >
-              F{level}
-            </Chip>
-          ))}
-        </div>
+              {results.length === 0 ? (
+                <p className="px-4 py-6 text-center" style={{ color: palette.muted, fontSize: 13 }}>
+                  No washrooms match that.
+                </p>
+              ) : (
+                results.slice(0, MAX_RESULTS).map((bathroom, index) => (
+                  <button
+                    key={bathroom.id}
+                    onClick={() => {
+                      setFocused(false);
+                      setSearch("");
+                      onOpenBathroom(bathroom);
+                    }}
+                    className="flex w-full items-start gap-3 px-4 py-3 text-left active:opacity-70"
+                    style={{ borderTop: index === 0 ? "none" : `1px solid ${palette.border}` }}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-1">
+                        <WashroomBadge type={bathroom.washroom_type} />
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: palette.charcoal, lineHeight: 1.35 }}>
+                        {locationOf(bathroom)}
+                      </div>
+                    </div>
+                    <ScorePair mine={myScores.get(bathroom.id)?.score ?? null} average={bathroom.global_score} />
+                  </button>
+                ))
+              )}
+              {results.length > MAX_RESULTS && (
+                <p className="px-4 py-2 text-center" style={{ color: palette.faint, fontSize: 11 }}>
+                  +{results.length - MAX_RESULTS} more — keep typing
+                </p>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       <div className="phone-scroll flex-1 overflow-y-auto px-5 pb-4">
         {bathrooms.error && <Notice tone="error">{bathrooms.error}</Notice>}
-
-        <div className="mb-3 flex items-center justify-between">
-          <span style={{ fontSize: 13, fontWeight: 600, color: palette.muted }}>
-            {filtered.length} bathroom{filtered.length === 1 ? "" : "s"}
-          </span>
-          <button
-            onClick={() => setSort(sort === "score" ? "location" : "score")}
-            style={{ fontSize: 13, fontWeight: 600, color: palette.periwinkle }}
-          >
-            {sort === "score" ? "Sort by score ↓" : "Sort by floor ↓"}
-          </button>
-        </div>
-
-        <div className="flex flex-col gap-2.5">
-          {filtered.map(bathroom => {
-            const mine = myScores.get(bathroom.id);
-            return (
-              <BathroomRow
-                key={bathroom.id}
-                bathroom={bathroom}
-                onPress={() => onOpen(bathroom)}
-                trailing={
-                  <div className="flex flex-col items-end gap-0.5">
-                    <ScoreChip score={mine?.score ?? bathroom.global_score} />
-                    <span style={{ fontSize: 9, fontWeight: 600, color: palette.faint, letterSpacing: "0.04em" }}>
-                      {mine ? "YOUR SCORE" : bathroom.global_score === null ? "" : `AVG · ${bathroom.review_count}`}
-                    </span>
-                  </div>
-                }
+        {feed.loading && !feed.data ? (
+          <LoadingScreen />
+        ) : (feed.data ?? []).length === 0 ? (
+          <EmptyState
+            title="Nothing here yet"
+            body="Follow a few people and what they rate shows up here."
+            action={
+              <button
+                onClick={onFindPeople}
+                className="w-full py-3"
+                style={{ fontSize: 14, fontWeight: 700, color: palette.periwinkle }}
+              >
+                Find people to follow →
+              </button>
+            }
+          />
+        ) : (
+          <div className="flex flex-col gap-3">
+            {feed.error && <Notice tone="error">{feed.error}</Notice>}
+            {(feed.data ?? []).map(entry => (
+              <FeedCard
+                key={entry.review.id}
+                entry={entry}
+                onOpenBathroom={() => entry.can_use && onOpenBathroom(entry.bathroom.id)}
+                onOpenProfile={() => onOpenProfile(entry.user.id)}
               />
-            );
-          })}
-        </div>
-
-        {filtered.length === 0 && !bathrooms.loading && (
-          <p className="py-10 text-center" style={{ color: palette.muted, fontSize: 13 }}>
-            Nothing matches that. Try clearing a filter.
-          </p>
+            ))}
+          </div>
         )}
       </div>
     </div>
   );
-}
-
-function Stat({ value, label, color }: { value: string; label: string; color: string }) {
-  return (
-    <div className="rounded-2xl px-3 py-2 text-center" style={{ background: "white", boxShadow: "0 2px 8px #0000000A" }}>
-      <div style={{ fontSize: 18, fontWeight: 800, color }}>{value}</div>
-      <div style={{ fontSize: 10, color: palette.muted, fontWeight: 500 }}>{label}</div>
-    </div>
-  );
-}
-
-function greeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 18) return "Good afternoon";
-  return "Good evening";
 }

@@ -6,12 +6,20 @@
  */
 
 import { beforeEach, expect, test } from "bun:test";
-import { BUCKET_BANDS, canUse, round1, scoreForPosition, visibleTypes } from "../../shared/api";
+import {
+  BUCKET_BANDS,
+  MAX_REVIEW_PHOTOS,
+  canUse,
+  detailKeysFor,
+  round1,
+  scoreForPosition,
+  visibleTypes,
+} from "../../shared/api";
 import { CATALOGUE } from "../../shared/catalogue";
 import { answerDuel, duelDone, duelOpponent, duelPosition, startDuel } from "../lib/duel";
 import { mockClient, resetMocks } from "./client";
 
-const ratings = { cleanliness: 4, accessibility: 4, hygiene: 4, privacy: 4, smell: 4 };
+const rating = 5 as const;
 
 beforeEach(async () => {
   resetMocks();
@@ -83,9 +91,10 @@ test("inserting at the top moves the bathroom that used to be there", async () =
 
   const result = await mockClient.submitReview({
     bathroom_id: fresh.id,
-    ratings,
+    rating,
+    details: {},
+    photos: [],
     note: null,
-    bucket: "loved",
     position: 0,
   });
 
@@ -102,9 +111,10 @@ test("re-rating replaces the old review instead of stacking a second one", async
 
   const result = await mockClient.submitReview({
     bathroom_id: target.bathroom.id,
-    ratings,
+    rating: 1,
+    details: {},
+    photos: [],
     note: "second look",
-    bucket: "never",
     position: 0,
   });
 

@@ -36,8 +36,10 @@ import type {
 } from "../../shared/api";
 import {
   BUCKET_ORDER,
-  RATING_CATEGORIES,
+  MAX_REVIEW_PHOTOS,
+  bucketForRating,
   canUse,
+  detailKeysFor,
   round1,
   scoreForPosition,
 } from "../../shared/api";
@@ -175,13 +177,7 @@ function rankingsFor(userId: number): RankedBathroom[] {
     rank,
     bucket: review.bucket,
     position: review.position,
-    ratings: {
-      cleanliness: review.cleanliness,
-      accessibility: review.accessibility,
-      hygiene: review.hygiene,
-      privacy: review.privacy,
-      smell: review.smell,
-    },
+    rating: review.rating,
   }));
 }
 
@@ -311,12 +307,13 @@ export const mockClient: ApiClient = {
     const row = bathroomRow(body.bathroom_id);
     assertUsable(user, row);
 
-    for (const key of RATING_CATEGORIES) {
-      const value = body.ratings[key];
-      if (!Number.isInteger(value) || value < 1 || value > 5) {
-        throw new Error(`${key} must be a whole number from 1 to 5`);
-      }
+    if (!Number.isInteger(body.rating) || body.rating < 1 || body.rating > 5) {
+      throw new Error("rating must be a whole number from 1 to 5");
     }
+
+    // The band follows from the stars — it is never sent separately, so the two
+    // can't disagree.
+    const bucket = bucketForRating(body.rating);
 
     const before = scoredReviews(user.id).find(r => r.review.bathroom_id === row.id);
     const previous_score = before?.score ?? null;
@@ -326,17 +323,33 @@ export const mockClient: ApiClient = {
       r => !(r.user_id === user.id && r.bathroom_id === row.id),
     );
 
+    // Details are optional and never touch the score; drop any key that doesn't
+    // apply to this washroom rather than storing a rating of a thing that isn't there.
+    const allowed = new Set(detailKeysFor(row.washroom_type));
+    const detail = (key: Parameters<typeof allowed.has>[0]) => {
+      if (!allowed.has(key)) return null;
+      const value = body.details[key];
+      if (value === undefined) return null;
+      if (!Number.isInteger(value) || value < 1 || value > 5) {
+        throw new Error(`${key} must be a whole number from 1 to 5`);
+      }
+      return value;
+    };
+
     const created: ReviewRow = {
       id: state.reviews.reduce((max, r) => Math.max(max, r.id), 0) + 1,
       user_id: user.id,
       bathroom_id: row.id,
-      cleanliness: body.ratings.cleanliness,
-      accessibility: body.ratings.accessibility,
-      hygiene: body.ratings.hygiene,
-      privacy: body.ratings.privacy,
-      smell: body.ratings.smell,
+      rating: body.rating,
+      cleanliness: detail("cleanliness"),
+      accessibility: detail("accessibility"),
+      smell: detail("smell"),
+      hygiene: detail("hygiene"),
+      privacy: detail("privacy"),
+      products: detail("products"),
+      photos: body.photos.slice(0, MAX_REVIEW_PHOTOS),
       note: body.note?.trim() ? body.note.trim() : null,
-      bucket: body.bucket,
+      bucket,
       position: 0,
       created_at: now(),
     };
@@ -345,7 +358,7 @@ export const mockClient: ApiClient = {
     // Splice it in at the duel's answer, then renumber the bucket so positions
     // stay a contiguous 0..n-1 — the order is the data, the numbers just record it.
     const bucketRows = state.reviews
-      .filter(r => r.user_id === user.id && r.bucket === body.bucket && r.id !== created.id)
+      .filter(r => r.user_id === user.id && r.bucket === bucket && r.id !== created.id)
       .sort((a, b) => a.position - b.position || a.id - b.id);
 
     const at = Math.min(Math.max(body.position, 0), bucketRows.length);

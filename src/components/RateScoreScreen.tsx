@@ -1,28 +1,24 @@
 /**
- * Step 2 of rating: the five categories, a note, and the bucket.
+ * Step 2 of rating: the verdict, then anything else you care to record.
  *
- * The number in the header is the plain average of the stars and is labelled a
- * *first impression* — it is NOT the score. The score doesn't exist yet; it comes
- * out of the duel on the next screen. Showing it here as "score" would quietly turn
- * the app back into a star-rating app.
+ * The star row at the top is the only input that touches the score — it picks the
+ * band, and the duel picks the place inside it. Everything below is optional and
+ * deliberately inert: cleanliness, smell and the rest are notes about the room, not
+ * a second scoring system. They're collapsed by default so the screen asks one
+ * question first.
  *
- * The bucket is the last thing asked because it's the one that matters: it picks
- * which band the duel searches, and the duel only ever compares like with like.
+ * Sanitary products are asked about in women's washrooms only; see `detailKeysFor`.
  */
 
-import { useState } from "react";
-import type { Bathroom, Bucket, RatingCategory, Ratings } from "../../shared/api";
-import { BUCKET_LABELS, BUCKET_ORDER, ratingsAverage } from "../../shared/api";
+import { useRef, useState } from "react";
+import type { Bathroom, Rating, ReviewDetails } from "../../shared/api";
+import { BUCKET_LABELS, MAX_REVIEW_PHOTOS, bucketForRating, detailKeysFor } from "../../shared/api";
 import type { ReviewDraft } from "../lib/duel";
-import { STAR_LABELS, buildingColor, categoryMeta, gradient, locationOf, palette, scoreColor } from "../lib/display";
-import { BackButton, WashroomBadge } from "./chrome";
+import { STAR_LABELS, detailMeta, gradient, locationOf, palette } from "../lib/display";
+import { BackButton, Notice, WashroomBadge } from "./chrome";
 import { StarIcon } from "./icons";
 
-const BUCKET_STYLE: Record<Bucket, { emoji: string; color: string; bg: string }> = {
-  loved: { emoji: "😍", color: "#3DBF82", bg: "#E8F8F0" },
-  fine: { emoji: "🙂", color: "#5B8FE8", bg: "#EBF1FD" },
-  never: { emoji: "🙅", color: "#E8736D", bg: "#FDECEB" },
-};
+const STARS: Rating[] = [1, 2, 3, 4, 5];
 
 export function RateScoreScreen({
   bathroom,
@@ -33,214 +29,273 @@ export function RateScoreScreen({
   onBack: () => void;
   onContinue: (draft: ReviewDraft) => void;
 }) {
-  const [ratings, setRatings] = useState<Partial<Record<RatingCategory, number>>>({});
+  const [rating, setRating] = useState<Rating | null>(null);
+  const [hovered, setHovered] = useState<Rating | null>(null);
+  const [details, setDetails] = useState<ReviewDetails>({});
+  const [photos, setPhotos] = useState<string[]>([]);
   const [note, setNote] = useState("");
-  const [bucket, setBucket] = useState<Bucket | null>(null);
-  const [hovered, setHovered] = useState<{ key: RatingCategory; value: number } | null>(null);
+  const [showDetails, setShowDetails] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
 
-  const complete = categoryMeta.every(category => ratings[category.key]);
-  const impression = complete ? ratingsAverage(ratings as Ratings) : null;
-  const ready = complete && bucket !== null;
+  const shown = hovered ?? rating ?? 0;
+  const keys = detailKeysFor(bathroom.washroom_type);
+  const answered = keys.filter(key => details[key] !== undefined).length;
+
+  function addPhotos(files: FileList | null) {
+    setPhotoError(null);
+    if (!files?.length) return;
+
+    const room = MAX_REVIEW_PHOTOS - photos.length;
+    if (room <= 0) {
+      setPhotoError(`Up to ${MAX_REVIEW_PHOTOS} photos.`);
+      return;
+    }
+
+    for (const file of Array.from(files).slice(0, room)) {
+      // Read to a data URL: there's no upload endpoint, and the review carries
+      // its own images so a mock demo shows real pictures.
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result;
+        if (typeof result === "string") setPhotos(current => [...current, result].slice(0, MAX_REVIEW_PHOTOS));
+      };
+      reader.onerror = () => setPhotoError("Couldn't read that image.");
+      reader.readAsDataURL(file);
+    }
+  }
 
   return (
     <div className="flex h-full flex-col" style={{ background: palette.bg }}>
       <div className="px-5 pb-5 pt-14" style={{ background: gradient.wash, borderRadius: "0 0 24px 24px" }}>
         <div className="mb-4 flex items-center gap-3">
           <BackButton onClick={onBack} />
-          <div className="flex-1">
-            <p style={{ fontSize: 11, fontWeight: 700, color: palette.muted, letterSpacing: "0.08em" }}>STEP 2 OF 2</p>
-            <h1 style={{ fontSize: 17, fontWeight: 800, color: palette.charcoal }}>Rate this bathroom</h1>
-          </div>
-          {impression !== null && (
-            <div
-              className="flex flex-col items-center justify-center rounded-xl px-3 py-1"
-              style={{ background: `${scoreColor(impression)}22` }}
-            >
-              <span style={{ fontSize: 17, fontWeight: 800, color: scoreColor(impression) }}>
-                {impression.toFixed(1)}
-              </span>
-              <span style={{ fontSize: 8, fontWeight: 700, color: palette.muted, letterSpacing: "0.04em" }}>
-                FIRST TAKE
-              </span>
-            </div>
-          )}
-        </div>
-
-        <div style={{ height: 4, background: palette.border, borderRadius: 999, marginBottom: 12 }}>
-          <div style={{ width: "100%", height: "100%", background: "linear-gradient(90deg, #7B8CDE, #9B78D4)", borderRadius: 999 }} />
-        </div>
-
-        <div className="flex items-center gap-3 rounded-2xl px-3 py-2.5" style={{ background: "white" }}>
-          <div
-            className="flex items-center justify-center rounded-xl"
-            style={{
-              width: 36,
-              height: 36,
-              background: `${buildingColor(bathroom.building)}20`,
-              color: buildingColor(bathroom.building),
-              fontSize: 12,
-              fontWeight: 800,
-            }}
+          <p
+            className="flex-1 text-right"
+            style={{ fontSize: 11, fontWeight: 700, color: palette.muted, letterSpacing: "0.08em" }}
           >
-            {bathroom.building}
+            STEP 2 OF 2
+          </p>
+        </div>
+
+        <div className="rounded-2xl px-4 py-3" style={{ background: "white" }}>
+          <div className="mb-1.5">
+            <WashroomBadge type={bathroom.washroom_type} size="md" />
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="truncate" style={{ fontSize: 13, fontWeight: 600, color: palette.charcoal }}>
-              {locationOf(bathroom)}
-            </div>
-            <div className="flex items-center gap-2">
-              <span style={{ fontSize: 11, color: palette.muted }}>Floor {bathroom.floor}</span>
-              <WashroomBadge type={bathroom.washroom_type} />
-            </div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: palette.charcoal, lineHeight: 1.35 }}>
+            {locationOf(bathroom)}
           </div>
         </div>
       </div>
 
-      <div className="phone-scroll flex-1 overflow-y-auto px-5 py-4">
-        <div className="flex flex-col gap-3">
-          {categoryMeta.map(category => {
-            const stored = ratings[category.key] ?? 0;
-            const preview = hovered?.key === category.key ? hovered.value : null;
-            const shown = preview ?? stored;
-            return (
-              <div key={category.key} className="rounded-2xl p-4" style={{ background: "white" }}>
-                <div className="mb-2 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span style={{ fontSize: 18 }}>{category.icon}</span>
-                    <div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: palette.charcoal }}>{category.label}</div>
-                      <div style={{ fontSize: 11, color: palette.muted }}>{category.desc}</div>
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 700,
-                      color: shown ? scoreColor(shown * 2) : palette.faint,
-                      minWidth: 40,
-                      textAlign: "right",
-                    }}
-                  >
-                    {shown ? STAR_LABELS[shown] : "—"}
-                  </div>
-                </div>
-
-                <div className="mt-1 flex justify-center gap-1.5">
-                  {[1, 2, 3, 4, 5].map(star => (
-                    <button
-                      key={star}
-                      onMouseEnter={() => setHovered({ key: category.key, value: star })}
-                      onMouseLeave={() => setHovered(null)}
-                      onClick={() => setRatings(current => ({ ...current, [category.key]: star }))}
-                      className="transition-transform active:scale-90"
-                      style={{ transform: shown >= star ? "scale(1.05)" : "scale(1)" }}
-                    >
-                      <StarIcon
-                        filled={shown >= star}
-                        color={shown >= 4 ? "#3DBF82" : shown >= 3 ? "#5B8FE8" : "#F5A623"}
-                      />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-
-          <div className="rounded-2xl p-4" style={{ background: "white" }}>
-            <div className="mb-3 flex items-center gap-2">
-              <span style={{ fontSize: 18 }}>📝</span>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: palette.charcoal }}>Leave a note</div>
-                <div style={{ fontSize: 11, color: palette.muted }}>Optional — share what stood out</div>
-              </div>
-            </div>
-            <textarea
-              placeholder="e.g. Always clean, great soap dispensers. The hand dryer is a bit loud."
-              value={note}
-              onChange={e => setNote(e.target.value)}
-              rows={3}
-              className="w-full resize-none outline-none"
-              style={{
-                borderRadius: 12,
-                background: palette.bg,
-                border: `1.5px solid ${palette.border}`,
-                padding: "10px 14px",
-                fontSize: 14,
-                color: palette.charcoal,
-                fontFamily: "inherit",
-                lineHeight: 1.5,
-              }}
-              onFocus={e => {
-                e.target.style.borderColor = palette.periwinkle;
-                e.target.style.boxShadow = "0 0 0 3px #7B8CDE18";
-              }}
-              onBlur={e => {
-                e.target.style.borderColor = palette.border;
-                e.target.style.boxShadow = "none";
-              }}
-            />
+      <div className="phone-scroll flex-1 overflow-y-auto px-5 py-5">
+        <div className="rounded-2xl px-4 py-6" style={{ background: "white" }}>
+          <div className="text-center" style={{ fontSize: 16, fontWeight: 800, color: palette.charcoal }}>
+            How was it?
           </div>
 
-          {/* The bucket. Picks the band the duel will search. */}
-          <div className="rounded-2xl p-4" style={{ background: "white" }}>
-            <div className="mb-3">
-              <div style={{ fontSize: 14, fontWeight: 700, color: palette.charcoal }}>Overall, how was it?</div>
+          <div className="mt-5 flex justify-center gap-3">
+            {STARS.map(star => (
+              <button
+                key={star}
+                onMouseEnter={() => setHovered(star)}
+                onMouseLeave={() => setHovered(null)}
+                onClick={() => setRating(star)}
+                className="transition-transform active:scale-90"
+                style={{ transform: shown >= star ? "scale(1.08)" : "scale(1)" }}
+              >
+                <StarIcon filled={shown >= star} size={36} />
+              </button>
+            ))}
+          </div>
+
+          <div
+            className="mt-4 text-center"
+            style={{ fontSize: 14, fontWeight: 700, color: shown ? palette.charcoal : palette.faint }}
+          >
+            {shown ? STAR_LABELS[shown] : "Tap to rate"}
+          </div>
+
+          {rating !== null && (
+            <div className="mt-1 text-center" style={{ fontSize: 12, color: palette.muted }}>
+              We'll compare it against your other “{BUCKET_LABELS[bucketForRating(rating)].toLowerCase()}” picks next
+            </div>
+          )}
+        </div>
+
+        {/* Optional and clearly marked as not counting. */}
+        <div className="mt-3 rounded-2xl" style={{ background: "white" }}>
+          <button
+            onClick={() => setShowDetails(open => !open)}
+            className="flex w-full items-center justify-between p-4 text-left"
+          >
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: palette.charcoal }}>Rate the details</div>
               <div style={{ fontSize: 11, color: palette.muted }}>
-                We'll compare it against your other {bucket ? BUCKET_LABELS[bucket].toLowerCase() : "…"} picks next
+                Optional — these don't affect the score
               </div>
             </div>
-            <div className="flex gap-2">
-              {BUCKET_ORDER.map(option => {
-                const style = BUCKET_STYLE[option];
-                const active = bucket === option;
+            <span style={{ fontSize: 12, fontWeight: 700, color: palette.periwinkle }}>
+              {answered > 0 ? `${answered}/${keys.length}` : showDetails ? "Hide" : "Add"}
+            </span>
+          </button>
+
+          {showDetails && (
+            <div className="px-4 pb-4">
+              {keys.map(key => {
+                const meta = detailMeta[key];
+                const value = details[key] ?? 0;
                 return (
-                  <button
-                    key={option}
-                    onClick={() => setBucket(option)}
-                    className="flex-1 py-3 transition-all active:scale-95"
-                    style={{
-                      borderRadius: 16,
-                      background: active ? style.bg : palette.bg,
-                      border: active ? `2px solid ${style.color}` : "2px solid transparent",
-                    }}
-                  >
-                    <div style={{ fontSize: 22 }}>{style.emoji}</div>
-                    <div
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 700,
-                        color: active ? style.color : palette.muted,
-                        marginTop: 4,
-                      }}
-                    >
-                      {BUCKET_LABELS[option]}
+                  <div key={key} className="flex items-center justify-between py-2.5" style={{ borderTop: `1px solid ${palette.border}` }}>
+                    <div className="min-w-0 pr-3">
+                      <div style={{ fontSize: 13, fontWeight: 600, color: palette.charcoal }}>{meta?.label ?? key}</div>
+                      <div style={{ fontSize: 11, color: palette.faint }}>{meta?.hint}</div>
                     </div>
-                  </button>
+                    <div className="flex flex-shrink-0 gap-1">
+                      {STARS.map(star => (
+                        <button
+                          key={star}
+                          onClick={() => setDetails(current => ({ ...current, [key]: star }))}
+                          className="active:scale-90"
+                        >
+                          <StarIcon filled={value >= star} size={17} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 );
               })}
             </div>
+          )}
+        </div>
+
+        <div className="mt-3 rounded-2xl p-4" style={{ background: "white" }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: palette.charcoal }}>Photos</div>
+          <div style={{ fontSize: 11, color: palette.muted }}>Optional — up to {MAX_REVIEW_PHOTOS}</div>
+
+          <div className="mt-3 flex gap-2">
+            {photos.map((src, index) => (
+              <div key={index} className="relative">
+                <img
+                  src={src}
+                  alt=""
+                  style={{ width: 76, height: 76, borderRadius: 12, objectFit: "cover", display: "block" }}
+                />
+                <button
+                  onClick={() => setPhotos(current => current.filter((_, i) => i !== index))}
+                  className="absolute -right-1.5 -top-1.5 flex items-center justify-center"
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: "50%",
+                    background: palette.charcoal,
+                    color: "white",
+                    fontSize: 12,
+                    lineHeight: 1,
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+
+            {photos.length < MAX_REVIEW_PHOTOS && (
+              <button
+                onClick={() => fileInput.current?.click()}
+                className="flex items-center justify-center active:opacity-70"
+                style={{
+                  width: 76,
+                  height: 76,
+                  borderRadius: 12,
+                  border: `1.5px dashed ${palette.periwinkleMid}`,
+                  color: palette.periwinkle,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  background: palette.bg,
+                }}
+              >
+                + Add
+              </button>
+            )}
           </div>
+
+          <input
+            ref={fileInput}
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            onChange={e => {
+              addPhotos(e.target.files);
+              e.target.value = "";
+            }}
+          />
+
+          {photoError && (
+            <div className="mt-2">
+              <Notice tone="error">{photoError}</Notice>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-3 rounded-2xl p-4" style={{ background: "white" }}>
+          <div className="mb-3">
+            <div style={{ fontSize: 14, fontWeight: 700, color: palette.charcoal }}>Leave a note</div>
+            <div style={{ fontSize: 11, color: palette.muted }}>Optional — share what stood out</div>
+          </div>
+          <textarea
+            placeholder="e.g. Always clean, great soap dispensers. The hand dryer is a bit loud."
+            value={note}
+            onChange={e => setNote(e.target.value)}
+            rows={3}
+            className="w-full resize-none outline-none"
+            style={{
+              borderRadius: 12,
+              background: palette.bg,
+              border: `1.5px solid ${palette.border}`,
+              padding: "10px 14px",
+              fontSize: 14,
+              color: palette.charcoal,
+              fontFamily: "inherit",
+              lineHeight: 1.5,
+            }}
+            onFocus={e => {
+              e.target.style.borderColor = palette.periwinkle;
+              e.target.style.boxShadow = "0 0 0 3px #7B8CDE18";
+            }}
+            onBlur={e => {
+              e.target.style.borderColor = palette.border;
+              e.target.style.boxShadow = "none";
+            }}
+          />
         </div>
       </div>
 
       <div className="px-5 pb-8 pt-4" style={{ background: palette.bg, borderTop: `1px solid ${palette.border}` }}>
         <button
           onClick={() => {
-            if (!ready || !bucket) return;
-            onContinue({ bathroom, ratings: ratings as Ratings, note: note.trim() || null, bucket });
+            if (rating === null) return;
+            onContinue({
+              bathroom,
+              rating,
+              details,
+              photos,
+              note: note.trim() || null,
+              bucket: bucketForRating(rating),
+            });
           }}
-          disabled={!ready}
+          disabled={rating === null}
           className="w-full py-4 transition-all active:opacity-80"
           style={{
             borderRadius: 16,
             fontSize: 16,
             fontWeight: 700,
-            background: ready ? gradient.primary : palette.border,
-            color: ready ? "white" : palette.faint,
-            boxShadow: ready ? "0 4px 20px #7B8CDE44" : "none",
+            background: rating === null ? palette.border : gradient.primary,
+            color: rating === null ? palette.faint : "white",
+            boxShadow: rating === null ? "none" : "0 4px 20px #7B8CDE44",
           }}
         >
-          {!complete ? "Rate all 5 categories to continue" : !bucket ? "Pick an overall verdict" : "Submit & Compare →"}
+          {rating === null ? "Pick a rating to continue" : "Submit & Compare →"}
         </button>
       </div>
     </div>

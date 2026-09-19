@@ -11,7 +11,7 @@
  * ever receives is the final `duelPosition()`.
  */
 
-import type { Bathroom, Bucket, RankedBathroom, Ratings } from "../../shared/api";
+import type { Bathroom, Bucket, RankedBathroom, Rating, ReviewDetails } from "../../shared/api";
 
 /**
  * A review that has been filled in but not yet placed. It exists only while the
@@ -19,8 +19,12 @@ import type { Bathroom, Bucket, RankedBathroom, Ratings } from "../../shared/api
  */
 export type ReviewDraft = {
   bathroom: Bathroom;
-  ratings: Ratings;
+  rating: Rating;
+  /** Optional per-aspect ratings. Carried along; never used to compute a score. */
+  details: ReviewDetails;
+  photos: string[];
   note: string | null;
+  /** Always `bucketForRating(rating)` — carried so the duel needn't recompute it. */
   bucket: Bucket;
 };
 

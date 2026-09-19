@@ -11,32 +11,29 @@
 
 import { useState } from "react";
 import type { Bathroom, Profile } from "../../shared/api";
-import { getProfile, listBookmarks, logout, setBookmark, setFollow } from "../api";
-import { buildingColor, gradient, initials, palette, scoreColor, washroomMeta } from "../lib/display";
+import { getProfile, logout, setFollow } from "../api";
+import { gradient, initials, locationOf, palette } from "../lib/display";
 import { useAsync } from "../lib/useAsync";
-import { BackButton, BathroomRow, EmptyState, LoadingScreen, Notice, ScoreChip, Segmented, WashroomBadge } from "./chrome";
-
-type Tab = "top" | "saved";
-
-const MEDALS = ["🥇", "🥈", "🥉"];
+import { BackButton, EmptyState, LoadingScreen, Notice, ScoreChip, WashroomBadge } from "./chrome";
 
 export function ProfileScreen({
   userId,
   onBack,
   onOpenBathroom,
   onSignedOut,
+  onFindPeople,
 }: {
   /** Undefined means the signed-in user. */
   userId?: number;
   onBack?: () => void;
   onOpenBathroom: (bathroom: Bathroom) => void;
   onSignedOut: () => void;
+  /** Following/followers are a door to the people list, not just a number. */
+  onFindPeople: () => void;
 }) {
-  const [tab, setTab] = useState<Tab>("top");
   const [busy, setBusy] = useState(false);
 
   const profile = useAsync(() => getProfile(userId), [userId]);
-  const bookmarks = useAsync(() => (userId === undefined ? listBookmarks() : Promise.resolve([])), [userId]);
 
   const isMe = userId === undefined;
 
@@ -99,13 +96,8 @@ export function ProfileScreen({
 
         <div className="mt-5 flex gap-2">
           <Stat value={String(data.reviewed_count)} label="Rated" />
-          <Stat
-            value={data.average_score === null ? "—" : data.average_score.toFixed(1)}
-            label="Avg given"
-            color={data.average_score === null ? undefined : scoreColor(data.average_score)}
-          />
-          <Stat value={String(data.following_count)} label="Following" />
-          <Stat value={String(data.followers_count)} label="Followers" />
+          <Stat value={String(data.following_count)} label="Following" onPress={isMe ? onFindPeople : undefined} />
+          <Stat value={String(data.followers_count)} label="Followers" onPress={isMe ? onFindPeople : undefined} />
         </div>
 
         {!isMe && (
@@ -128,93 +120,46 @@ export function ProfileScreen({
       </div>
 
       <div className="px-5 pt-4">
-        {isMe ? (
-          <Segmented
-            value={tab}
-            onChange={setTab}
-            options={[
-              { id: "top", label: "Top rated" },
-              { id: "saved", label: "Bookmarks" },
-            ]}
-          />
-        ) : (
-          <h3 style={{ fontSize: 15, fontWeight: 700, color: palette.charcoal }}>
-            {data.user.display_name.split(" ")[0]}'s top rated
-          </h3>
-        )}
+        <h3 style={{ fontSize: 15, fontWeight: 700, color: palette.charcoal }}>
+          {isMe ? "Your top rated" : `${data.user.display_name.split(" ")[0]}'s top rated`}
+        </h3>
       </div>
 
       <div className="phone-scroll flex-1 overflow-y-auto px-5 py-4">
-        {tab === "top" || !isMe ? (
-          data.top.length === 0 ? (
-            <EmptyState
-              icon="🚽"
-              title={isMe ? "No rankings yet" : "Nothing rated yet"}
-              body={
-                isMe
-                  ? "Rate a bathroom and your podium shows up here."
-                  : "They haven't rated anything you can see yet."
-              }
-            />
-          ) : (
-            <div className="flex flex-col gap-2.5">
-              {data.top.map((entry, index) => (
-                <button
-                  key={entry.review_id}
-                  onClick={() => onOpenBathroom(entry.bathroom)}
-                  className="flex items-center gap-3 rounded-2xl px-4 py-3.5 text-left active:scale-[0.99]"
-                  style={{ background: "white", boxShadow: "0 1px 4px #0000000A" }}
-                >
-                  <span style={{ fontSize: 20 }}>{MEDALS[index]}</span>
-                  <div
-                    className="flex flex-shrink-0 items-center justify-center rounded-lg"
-                    style={{
-                      width: 34,
-                      height: 34,
-                      background: `${buildingColor(entry.bathroom.building)}20`,
-                      color: buildingColor(entry.bathroom.building),
-                      fontSize: 12,
-                      fontWeight: 800,
-                    }}
-                  >
-                    {entry.bathroom.building}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate" style={{ fontSize: 13, fontWeight: 600, color: palette.charcoal }}>
-                      {entry.bathroom.location}
-                    </div>
-                    <div className="mt-0.5 flex items-center gap-1.5">
-                      <span style={{ fontSize: 11, color: palette.muted }}>F{entry.bathroom.floor}</span>
-                      <WashroomBadge type={entry.bathroom.washroom_type} />
-                    </div>
-                  </div>
-                  <ScoreChip score={entry.score} />
-                </button>
-              ))}
-            </div>
-          )
-        ) : (bookmarks.data ?? []).length === 0 ? (
+        {data.top.length === 0 ? (
           <EmptyState
-            icon="🔖"
-            title="No bookmarks"
-            body="Tap the bookmark on any bathroom to keep it here. You can only save washrooms you actually use."
+            title={isMe ? "No rankings yet" : "Nothing rated yet"}
+            body={
+              isMe
+                ? "Rate a bathroom and your best ones show up here."
+                : "They haven't rated anything yet."
+            }
           />
         ) : (
           <div className="flex flex-col gap-2.5">
-            {(bookmarks.data ?? []).map(bathroom => (
-              <div key={bathroom.id} className="relative">
-                <BathroomRow bathroom={bathroom} onPress={() => onOpenBathroom(bathroom)} bookmarked />
-                <button
-                  onClick={async () => {
-                    await setBookmark(bathroom.id, false);
-                    bookmarks.reload();
-                  }}
-                  className="absolute right-3 top-2 active:opacity-60"
-                  style={{ fontSize: 11, fontWeight: 600, color: palette.faint }}
+            {data.top.map((entry, index) => (
+              <button
+                key={entry.review_id}
+                onClick={() => onOpenBathroom(entry.bathroom)}
+                className="flex items-start gap-3 rounded-2xl px-4 py-3.5 text-left active:scale-[0.99]"
+                style={{ background: "white", boxShadow: "0 1px 4px #0000000A" }}
+              >
+                <div
+                  className="flex flex-shrink-0 items-center justify-center"
+                  style={{ width: 26, fontSize: 14, fontWeight: 700, color: palette.faint, paddingTop: 2 }}
                 >
-                  Remove
-                </button>
-              </div>
+                  {index + 1}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="mb-1">
+                    <WashroomBadge type={entry.bathroom.washroom_type} />
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: palette.charcoal, lineHeight: 1.35 }}>
+                    {locationOf(entry.bathroom)}
+                  </div>
+                </div>
+                <ScoreChip score={entry.score} />
+              </button>
             ))}
           </div>
         )}
@@ -236,11 +181,26 @@ export function ProfileScreen({
   );
 }
 
-function Stat({ value, label, color }: { value: string; label: string; color?: string }) {
+function Stat({
+  value,
+  label,
+  color,
+  onPress,
+}: {
+  value: string;
+  label: string;
+  color?: string;
+  onPress?: () => void;
+}) {
+  const Tag = onPress ? "button" : "div";
   return (
-    <div className="flex-1 rounded-2xl px-2 py-2 text-center" style={{ background: "white" }}>
+    <Tag
+      onClick={onPress}
+      className="flex-1 rounded-2xl px-2 py-2 text-center"
+      style={{ background: "white" }}
+    >
       <div style={{ fontSize: 17, fontWeight: 800, color: color ?? palette.charcoal }}>{value}</div>
       <div style={{ fontSize: 10, color: palette.muted, fontWeight: 500 }}>{label}</div>
-    </div>
+    </Tag>
   );
 }

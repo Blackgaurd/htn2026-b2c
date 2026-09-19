@@ -8,8 +8,7 @@
 
 import type { ReactNode } from "react";
 import type { Bathroom, UserSummary, WashroomType } from "../../shared/api";
-import { buildingColor, gradient, initials, locationOf, palette, scoreColor, washroomMeta } from "../lib/display";
-import { BackIcon, BookmarkIcon, FriendsIcon, HomeIcon, PlusIcon, ProfileIcon, SearchIcon, TrophyIcon } from "./icons";
+import { gradient, initials, locationOf, palette, scoreColor, washroomMeta } from "../lib/display";
 
 // ─── Badges ───────────────────────────────────────────────────────────────────
 
@@ -21,7 +20,7 @@ export function WashroomBadge({ type, size = "sm" }: { type: WashroomType; size?
   const meta = washroomMeta[type];
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full"
+      className="inline-flex items-center rounded-full"
       style={{
         color: meta.color,
         background: meta.bg,
@@ -31,7 +30,6 @@ export function WashroomBadge({ type, size = "sm" }: { type: WashroomType; size?
         whiteSpace: "nowrap",
       }}
     >
-      <span style={{ fontSize: size === "md" ? 11 : 10 }}>{meta.icon}</span>
       {meta.label}
     </span>
   );
@@ -56,25 +54,6 @@ export function ScoreChip({ score, label = "Not rated" }: { score: number | null
     >
       {score.toFixed(1)}
     </span>
-  );
-}
-
-export function BuildingChip({ bathroom, size = 44 }: { bathroom: Bathroom; size?: number }) {
-  const color = buildingColor(bathroom.building);
-  return (
-    <div
-      className="flex flex-shrink-0 items-center justify-center rounded-xl"
-      style={{
-        width: size,
-        height: size,
-        background: `${color}20`,
-        color,
-        fontSize: size > 38 ? 13 : 11,
-        fontWeight: 800,
-      }}
-    >
-      {bathroom.building}
-    </div>
   );
 }
 
@@ -103,7 +82,6 @@ export function BathroomRow({
   onPress,
   selected,
   score,
-  bookmarked,
   trailing,
 }: {
   bathroom: Bathroom;
@@ -111,7 +89,6 @@ export function BathroomRow({
   selected?: boolean;
   /** Your personal score when you have one; falls back to the global score. */
   score?: number | null;
-  bookmarked?: boolean;
   trailing?: ReactNode;
 }) {
   const shown = score === undefined ? bathroom.global_score : score;
@@ -127,21 +104,16 @@ export function BathroomRow({
         boxShadow: selected ? "0 4px 16px #7B8CDE22" : "0 1px 4px #0000000A",
       }}
     >
-      <BuildingChip bathroom={bathroom} />
       <div className="min-w-0 flex-1">
-        <div className="mb-0.5 truncate text-sm" style={{ color: palette.charcoal, fontWeight: 600 }}>
-          {locationOf(bathroom)}
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs" style={{ color: palette.muted }}>
-            Floor {bathroom.floor}
-          </span>
+        <div className="mb-1 flex flex-wrap items-center gap-2">
           <WashroomBadge type={bathroom.washroom_type} />
+        </div>
+        <div style={{ color: palette.charcoal, fontWeight: 600, fontSize: 14, lineHeight: 1.35 }}>
+          {locationOf(bathroom)}
         </div>
       </div>
       <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
-        {trailing ?? <ScoreChip score={shown} />}
-        {bookmarked && <span style={{ fontSize: 13 }}>🔖</span>}
+        {trailing ?? <ScorePair mine={shown} average={bathroom.global_score} />}
       </div>
     </button>
   );
@@ -149,43 +121,69 @@ export function BathroomRow({
 
 // ─── Layout bits ──────────────────────────────────────────────────────────────
 
-export function RoundButton({ onClick, children }: { onClick: () => void; children: ReactNode }) {
+/**
+ * The two numbers a bathroom has, side by side and named.
+ *
+ * They are never the same thing: AVG is what everyone thinks, YOURS is where it
+ * sits in your own ranking. A dash means you haven't rated it — not a zero, and
+ * not a "new" badge, which said something about the row rather than the score.
+ */
+export function ScorePair({ mine, average }: { mine: number | null | undefined; average: number | null }) {
   return (
-    <button
-      onClick={onClick}
-      className="flex items-center justify-center active:opacity-70"
-      style={{ width: 38, height: 38, borderRadius: 12, background: "white", border: `1.5px solid ${palette.border}` }}
-    >
-      {children}
-    </button>
+    <div className="flex items-start gap-3 text-right">
+      <ScoreCell label="AVG" value={average} />
+      <ScoreCell label="YOURS" value={mine ?? null} />
+    </div>
+  );
+}
+
+function ScoreCell({ label, value }: { label: string; value: number | null }) {
+  return (
+    <div style={{ minWidth: 34 }}>
+      <div style={{ fontSize: 9, fontWeight: 700, color: palette.faint, letterSpacing: "0.04em" }}>{label}</div>
+      <div
+        className="tabular-nums"
+        style={{
+          fontSize: 15,
+          fontWeight: 800,
+          color: value === null ? palette.faint : scoreColor(value),
+          lineHeight: 1.3,
+        }}
+      >
+        {value === null ? "–" : value.toFixed(1)}
+      </div>
+    </div>
   );
 }
 
 export function BackButton({ onClick }: { onClick: () => void }) {
   return (
-    <RoundButton onClick={onClick}>
-      <BackIcon />
-    </RoundButton>
+    <button
+      onClick={onClick}
+      className="active:opacity-60"
+      style={{ fontSize: 14, fontWeight: 600, color: palette.periwinkle }}
+    >
+      ← Back
+    </button>
   );
 }
 
-export function BookmarkButton({ on, onToggle, disabled }: { on: boolean; onToggle: () => void; disabled?: boolean }) {
+export function SaveButton({ on, onToggle, disabled }: { on: boolean; onToggle: () => void; disabled?: boolean }) {
   return (
     <button
       onClick={onToggle}
       disabled={disabled}
-      title={disabled ? "You can only save washrooms you use" : on ? "Saved" : "Save"}
-      className="flex items-center justify-center active:opacity-70"
+      className="rounded-full px-3 py-1.5 active:opacity-70"
       style={{
-        width: 38,
-        height: 38,
-        borderRadius: 12,
-        background: "white",
+        fontSize: 12,
+        fontWeight: 700,
+        background: on ? palette.periwinkle : "white",
+        color: on ? "white" : palette.muted,
         opacity: disabled ? 0.4 : 1,
-        border: `1.5px solid ${palette.border}`,
+        border: on ? "none" : `1.5px solid ${palette.border}`,
       }}
     >
-      <BookmarkIcon filled={on} />
+      {on ? "Saved" : "Save"}
     </button>
   );
 }
@@ -224,21 +222,23 @@ export function SearchField({
   value,
   onChange,
   placeholder,
+  onFocus,
 }: {
   value: string;
   onChange: (next: string) => void;
   placeholder: string;
+  onFocus?: () => void;
 }) {
   return (
     <div
       className="flex items-center gap-2 px-4 py-3"
       style={{ background: "white", borderRadius: 14, border: `1.5px solid ${palette.border}` }}
     >
-      <SearchIcon />
       <input
         placeholder={placeholder}
         value={value}
         onChange={e => onChange(e.target.value)}
+        onFocus={onFocus}
         className="flex-1 bg-transparent outline-none"
         style={{ fontSize: 15, color: palette.charcoal, fontFamily: "inherit" }}
       />
@@ -307,15 +307,9 @@ export function Segmented<T extends string>({
   );
 }
 
-export function EmptyState({ icon, title, body, action }: { icon: string; title: string; body: string; action?: ReactNode }) {
+export function EmptyState({ title, body, action }: { title: string; body: string; action?: ReactNode }) {
   return (
     <div className="flex flex-col items-center justify-center px-8 py-14 text-center">
-      <div
-        className="mb-4 flex items-center justify-center"
-        style={{ width: 72, height: 72, borderRadius: 24, background: palette.periwinkleLight, fontSize: 30 }}
-      >
-        {icon}
-      </div>
       <div style={{ fontSize: 16, fontWeight: 800, color: palette.charcoal }}>{title}</div>
       <p style={{ fontSize: 13, color: palette.muted, marginTop: 6, lineHeight: 1.5, maxWidth: 260 }}>{body}</p>
       {action && <div className="mt-5 w-full">{action}</div>}
@@ -367,14 +361,26 @@ export function LoadingScreen() {
 
 // ─── Tab bar ──────────────────────────────────────────────────────────────────
 
-export type Tab = "home" | "rankings" | "friends" | "profile";
+/**
+ * Five slots, so the rate button sits in the middle where it belongs.
+ *
+ * It was four before — two tabs, the button, one tab — which read as off-centre
+ * because it was. Saved fills the gap: bookmarks were buried as a tab inside the
+ * profile, which is a strange place for a list you open constantly.
+ *
+ * Labels, not icons. A drawn house and a drawn trophy needed decoding; the words
+ * don't.
+ */
+export type Tab = "home" | "rankings" | "saved" | "profile";
 
 export function TabBar({ active, onSelect, onRate }: { active: Tab; onSelect: (tab: Tab) => void; onRate: () => void }) {
-  const tabs: { id: Tab; Icon: (props: { active?: boolean }) => ReactNode; label: string }[] = [
-    { id: "home", Icon: HomeIcon, label: "Home" },
-    { id: "rankings", Icon: TrophyIcon, label: "Rankings" },
-    { id: "friends", Icon: FriendsIcon, label: "Friends" },
-    { id: "profile", Icon: ProfileIcon, label: "Profile" },
+  const left: { id: Tab; label: string }[] = [
+    { id: "home", label: "Home" },
+    { id: "rankings", label: "Rankings" },
+  ];
+  const right: { id: Tab; label: string }[] = [
+    { id: "saved", label: "Saved" },
+    { id: "profile", label: "Profile" },
   ];
 
   return (
@@ -382,28 +388,33 @@ export function TabBar({ active, onSelect, onRate }: { active: Tab; onSelect: (t
       className="flex flex-shrink-0 items-end justify-around px-2 pb-6 pt-2"
       style={{ background: "white", borderTop: `1px solid ${palette.border}` }}
     >
-      {tabs.slice(0, 2).map(tab => (
+      {left.map(tab => (
         <TabButton key={tab.id} tab={tab} active={active === tab.id} onSelect={onSelect} />
       ))}
 
-      {/* The rate button isn't a tab — it opens the review flow, which has no tab bar. */}
+      {/* Not a tab — it opens the review flow, which has no tab bar of its own. */}
       <button className="-mt-7 flex flex-col items-center" onClick={onRate}>
         <div
-          className="flex items-center justify-center shadow-lg"
+          className="flex items-center justify-center"
           style={{
             width: 56,
             height: 56,
             borderRadius: "50%",
             background: gradient.brand,
             boxShadow: "0 4px 20px #7B8CDE44",
+            color: "white",
+            fontSize: 28,
+            fontWeight: 300,
+            lineHeight: 1,
+            paddingBottom: 3,
           }}
         >
-          <PlusIcon />
+          +
         </div>
         <span style={{ color: palette.periwinkle, fontSize: 10, fontWeight: 600, marginTop: 4 }}>Rate</span>
       </button>
 
-      {tabs.slice(2).map(tab => (
+      {right.map(tab => (
         <TabButton key={tab.id} tab={tab} active={active === tab.id} onSelect={onSelect} />
       ))}
     </div>
@@ -415,17 +426,30 @@ function TabButton({
   active,
   onSelect,
 }: {
-  tab: { id: Tab; Icon: (props: { active?: boolean }) => ReactNode; label: string };
+  tab: { id: Tab; label: string };
   active: boolean;
   onSelect: (tab: Tab) => void;
 }) {
-  const { Icon } = tab;
   return (
-    <button className="flex flex-col items-center gap-1 px-2 py-1" onClick={() => onSelect(tab.id)}>
-      <Icon active={active} />
-      <span style={{ color: active ? palette.periwinkle : palette.faint, fontSize: 10, fontWeight: active ? 600 : 400 }}>
+    <button className="flex flex-col items-center px-2 py-1" style={{ minWidth: 60 }} onClick={() => onSelect(tab.id)}>
+      <span
+        style={{
+          color: active ? palette.periwinkle : palette.faint,
+          fontSize: 12,
+          fontWeight: active ? 700 : 500,
+        }}
+      >
         {tab.label}
       </span>
+      <span
+        style={{
+          marginTop: 5,
+          width: 16,
+          height: 2,
+          borderRadius: 2,
+          background: active ? palette.periwinkle : "transparent",
+        }}
+      />
     </button>
   );
 }

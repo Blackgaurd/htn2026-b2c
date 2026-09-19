@@ -9,12 +9,10 @@
 
 import { useEffect, useState } from "react";
 import type { SubmitReviewResult } from "../../shared/api";
-import { buildingColor, gradient, palette, scoreColor, scoreLabel, washroomMeta } from "../lib/display";
-import { ScoreChip } from "./chrome";
+import { gradient, locationOf, palette, scoreColor, scoreLabel } from "../lib/display";
+import { ScoreChip, WashroomBadge } from "./chrome";
 
-const CONFETTI = ["#7B8CDE", "#5EC4A8", "#9B78D4", "#F5A623", "#3DBF82"];
-const MEDALS = ["🥇", "🥈", "🥉"];
-const MEDAL_COLORS = ["#F5A623", "#ADADBE", "#CD7F32"];
+const CONFETTI = ["#7B8CDE", "#9B78D4", "#7B8CDE", "#9B78D4", "#7B8CDE"];
 
 export function CompareResultScreen({
   result,
@@ -145,7 +143,7 @@ export function CompareResultScreen({
               transition: "opacity 0.4s ease 0.6s",
             }}
           >
-            {landed ? `${landed.bathroom.building} ${landed.bathroom.location}` : ""}
+            {landed ? locationOf(landed.bathroom) : ""}
           </p>
         </div>
       </div>
@@ -165,7 +163,6 @@ export function CompareResultScreen({
         >
           {window.map((entry, i) => {
             const isNew = entry.review_id === review.id;
-            const isTop3 = entry.rank <= 3;
             return (
               <div
                 key={entry.review_id}
@@ -181,48 +178,31 @@ export function CompareResultScreen({
               >
                 <div
                   className="flex flex-shrink-0 items-center justify-center"
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: 10,
-                    background: isTop3 ? `${MEDAL_COLORS[entry.rank - 1]}22` : "#F5F4F0",
-                    color: isTop3 ? MEDAL_COLORS[entry.rank - 1] : palette.faint,
-                    fontSize: 13,
-                    fontWeight: 800,
-                  }}
+                  style={{ width: 22, fontSize: 13, fontWeight: 700, color: palette.faint }}
                 >
-                  {isTop3 ? MEDALS[entry.rank - 1] : entry.rank}
-                </div>
-
-                <div
-                  className="flex flex-shrink-0 items-center justify-center rounded-lg"
-                  style={{
-                    width: 32,
-                    height: 32,
-                    background: `${buildingColor(entry.bathroom.building)}20`,
-                    color: buildingColor(entry.bathroom.building),
-                    fontSize: 11,
-                    fontWeight: 800,
-                  }}
-                >
-                  {entry.bathroom.building}
+                  {entry.rank}
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <div className="truncate" style={{ fontSize: 13, fontWeight: 600, color: palette.charcoal }}>
-                    {entry.bathroom.location}
+                  <div className="mb-1" style={{ fontSize: 13, fontWeight: 600, color: palette.charcoal, lineHeight: 1.35 }}>
+                    {locationOf(entry.bathroom)}
                   </div>
-                  <div style={{ fontSize: 11, color: palette.muted }}>
-                    F{entry.bathroom.floor} · {washroomMeta[entry.bathroom.washroom_type].label}
-                  </div>
+                  <WashroomBadge type={entry.bathroom.washroom_type} />
                 </div>
 
                 <ScoreChip score={entry.score} />
 
+                {/* Five near-identical rows; this is the one you just added. */}
                 {isNew && (
                   <div
                     className="flex-shrink-0 rounded-full px-1.5 py-0.5"
-                    style={{ background: palette.periwinkle, fontSize: 9, fontWeight: 700, color: "white", letterSpacing: "0.05em" }}
+                    style={{
+                      background: palette.periwinkle,
+                      fontSize: 9,
+                      fontWeight: 700,
+                      color: "white",
+                      letterSpacing: "0.05em",
+                    }}
                   >
                     NEW
                   </div>

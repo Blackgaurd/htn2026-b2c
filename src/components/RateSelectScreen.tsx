@@ -1,113 +1,133 @@
 /**
- * Step 1 of rating: pick the bathroom.
+ * Step 1 of rating: pick the washroom.
  *
- * This is the screen where the app's one hard rule lives. There is no "add a new
- * bathroom" affordance because there is no such operation — the catalogue is fixed
- * and `listBathrooms()` has already dropped everything outside your preference.
- * Search narrows the list; it never offers to create what isn't in it.
+ * This is where the app's one hard rule lives — there's no "add a new bathroom"
+ * affordance because there's no such operation. Search narrows the fixed
+ * catalogue; it never offers to create what isn't in it.
+ *
+ * It no longer opens on the whole catalogue. A list of every washroom on campus
+ * isn't a starting point, it's a wall, and scrolling it was never how anyone was
+ * going to find the one they just used. There's also no floor filter: plenty of
+ * buildings don't have floors worth filtering by, and typing beats narrowing twice.
+ *
+ * What fills the space instead is the shortlist you're most likely to want — what
+ * the people you follow have been rating, minus the ones you've already done.
  */
 
 import { useMemo, useState } from "react";
 import type { Bathroom } from "../../shared/api";
-import { CATALOGUE_FLOORS } from "../../shared/catalogue";
-import { listBathrooms, listMyRankings } from "../api";
+import { listBathrooms, listFeed, listMyRankings } from "../api";
 import { locationOf, palette } from "../lib/display";
 import { useAsync } from "../lib/useAsync";
-import { BathroomRow, BackButton, Chip, LoadingScreen, Notice, ScoreChip, SearchField } from "./chrome";
+import { BackButton, LoadingScreen, Notice, ScorePair, SearchField, WashroomBadge } from "./chrome";
+
+const MAX_SUGGESTIONS = 5;
 
 export function RateSelectScreen({ onBack, onPick }: { onBack: () => void; onPick: (bathroom: Bathroom) => void }) {
   const [search, setSearch] = useState("");
-  const [building, setBuilding] = useState<"all" | "E5" | "E7">("all");
-  const [floor, setFloor] = useState<number | null>(null);
   const [selected, setSelected] = useState<Bathroom | null>(null);
 
   const bathrooms = useAsync(() => listBathrooms(), []);
   const rankings = useAsync(() => listMyRankings(), []);
+  const feed = useAsync(() => listFeed(), []);
 
-  const rated = useMemo(
+  const myScores = useMemo(
     () => new Map((rankings.data ?? []).map(entry => [entry.bathroom.id, entry.score])),
     [rankings.data],
   );
 
-  const filtered = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return (bathrooms.data ?? []).filter(b => {
-      if (building !== "all" && b.building !== building) return false;
-      if (floor !== null && b.floor !== floor) return false;
-      if (query && !locationOf(b).toLowerCase().includes(query)) return false;
-      return true;
-    });
-  }, [bathrooms.data, building, floor, search]);
+  const query = search.trim().toLowerCase();
+
+  const results = useMemo(() => {
+    if (!query) return [];
+    return (bathrooms.data ?? []).filter(b => locationOf(b).toLowerCase().includes(query));
+  }, [bathrooms.data, query]);
+
+  // Newest first, de-duplicated, skipping anything you've already rated and
+  // anything you can't use. `listFeed` is already ordered, so first wins.
+  const suggestions = useMemo(() => {
+    const seen = new Set<number>();
+    const out: Bathroom[] = [];
+    for (const entry of feed.data ?? []) {
+      if (!entry.can_use) continue;
+      if (myScores.has(entry.bathroom.id)) continue;
+      if (seen.has(entry.bathroom.id)) continue;
+      seen.add(entry.bathroom.id);
+      out.push(entry.bathroom);
+      if (out.length === MAX_SUGGESTIONS) break;
+    }
+    return out;
+  }, [feed.data, myScores]);
 
   if (bathrooms.loading && !bathrooms.data) return <LoadingScreen />;
+
+  const listed = query ? results : suggestions;
 
   return (
     <div className="flex h-full flex-col" style={{ background: palette.bg }}>
       <div className="px-5 pb-4 pt-14">
-        <div className="mb-5 flex items-center gap-3">
+        <div className="mb-4 flex items-center gap-3">
           <BackButton onClick={onBack} />
-          <div>
-            <h1 style={{ fontSize: 20, fontWeight: 800, color: palette.charcoal }}>Rate a Bathroom</h1>
-            <p style={{ fontSize: 12, color: palette.muted }}>Step 1 of 2 — Choose from the list</p>
-          </div>
+          <p
+            className="flex-1 text-right"
+            style={{ fontSize: 11, fontWeight: 700, color: palette.muted, letterSpacing: "0.08em" }}
+          >
+            STEP 1 OF 2
+          </p>
         </div>
 
-        <div style={{ height: 4, background: palette.border, borderRadius: 999, marginBottom: 16 }}>
-          <div style={{ width: "50%", height: "100%", background: "linear-gradient(90deg, #7B8CDE, #9B78D4)", borderRadius: 999 }} />
-        </div>
+        <h1 className="mb-3" style={{ fontSize: 22, fontWeight: 800, color: palette.charcoal }}>
+          Which washroom?
+        </h1>
 
-        <SearchField value={search} onChange={setSearch} placeholder="Search bathrooms..." />
-
-        <div className="phone-scroll mt-3 flex gap-2 overflow-x-auto pb-1">
-          {(["all", "E5", "E7"] as const).map(option => (
-            <Chip key={option} active={building === option} onClick={() => setBuilding(option)}>
-              {option === "all" ? "All" : option}
-            </Chip>
-          ))}
-          <div style={{ width: 1, background: palette.border, margin: "4px 0", flexShrink: 0 }} />
-          {CATALOGUE_FLOORS.map(level => (
-            <Chip
-              key={level}
-              active={floor === level}
-              activeColor={palette.charcoal}
-              onClick={() => setFloor(floor === level ? null : level)}
-            >
-              F{level}
-            </Chip>
-          ))}
-        </div>
+        <SearchField value={search} onChange={setSearch} placeholder="Search by building or room..." />
       </div>
 
       <div className="phone-scroll flex-1 overflow-y-auto px-5">
         {bathrooms.error && <Notice tone="error">{bathrooms.error}</Notice>}
 
+        <p className="mb-3" style={{ fontSize: 12, fontWeight: 700, color: palette.faint, letterSpacing: "0.04em" }}>
+          {query
+            ? `${results.length} RESULT${results.length === 1 ? "" : "S"}`
+            : suggestions.length > 0
+              ? "RATED BY PEOPLE YOU FOLLOW"
+              : ""}
+        </p>
+
         <div className="flex flex-col gap-2.5 pb-4">
-          {filtered.map(bathroom => {
-            const mine = rated.get(bathroom.id);
+          {listed.map(bathroom => {
+            const isSelected = selected?.id === bathroom.id;
             return (
-              <BathroomRow
+              <button
                 key={bathroom.id}
-                bathroom={bathroom}
-                selected={selected?.id === bathroom.id}
-                onPress={() => setSelected(current => (current?.id === bathroom.id ? null : bathroom))}
-                trailing={
-                  mine === undefined ? (
-                    <ScoreChip score={null} label="New" />
-                  ) : (
-                    <div className="flex flex-col items-end gap-0.5">
-                      <ScoreChip score={mine} />
-                      <span style={{ fontSize: 9, fontWeight: 600, color: palette.faint }}>RE-RATE</span>
-                    </div>
-                  )
-                }
-              />
+                onClick={() => setSelected(current => (current?.id === bathroom.id ? null : bathroom))}
+                className="flex w-full items-start gap-3 px-4 py-3.5 text-left transition-all active:scale-[0.99]"
+                style={{
+                  background: isSelected ? palette.periwinkleLight : "white",
+                  borderRadius: 16,
+                  border: isSelected ? `2px solid ${palette.periwinkle}` : "2px solid transparent",
+                  boxShadow: isSelected ? "0 4px 16px #7B8CDE22" : "0 1px 4px #0000000A",
+                }}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="mb-1">
+                    <WashroomBadge type={bathroom.washroom_type} />
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: palette.charcoal, lineHeight: 1.35 }}>
+                    {locationOf(bathroom)}
+                  </div>
+                </div>
+                <ScorePair mine={myScores.get(bathroom.id) ?? null} average={bathroom.global_score} />
+              </button>
             );
           })}
         </div>
 
-        {filtered.length === 0 && (
-          <p className="py-10 text-center" style={{ color: palette.muted, fontSize: 13 }}>
-            No bathrooms match that search.
+        {listed.length === 0 && (
+          <p className="py-8 text-center" style={{ color: palette.muted, fontSize: 13, lineHeight: 1.6 }}>
+            {query
+              ? "No washrooms match that."
+              : "Search for the washroom you just used — by building, floor or room number."}
           </p>
         )}
       </div>
@@ -126,7 +146,7 @@ export function RateSelectScreen({ onBack, onPick }: { onBack: () => void; onPic
             boxShadow: selected ? "0 4px 20px #7B8CDE44" : "none",
           }}
         >
-          {selected ? `Rate "${selected.building} F${selected.floor}" →` : "Select a bathroom to continue"}
+          {selected ? "Continue →" : "Select a washroom to continue"}
         </button>
       </div>
     </div>

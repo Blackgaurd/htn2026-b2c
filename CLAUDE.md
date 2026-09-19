@@ -42,7 +42,7 @@ is a bug, not a feature.
 ### Washroom types and the visibility rule
 
 `washroom_type` is `"female" | "male" | "universal"`. There is no "accessible" type —
-accessibility is a rating dimension and a set of tags, not a category.
+accessibility is a detail rating and a flag on the room, not a category.
 
 Every user picks a `washroom_pref` (the same three values) at register. It gates what
 they can see:
@@ -51,9 +51,9 @@ they can see:
 - `male` → male + universal
 - `universal` → universal only
 
-The gate applies to the picker, browse, search, compare, bookmarks and want-to-go.
-Bookmarking outside your preference isn't just hidden in the UI — the operation
-rejects it, in the mock client and in `server/routes.ts` alike.
+The gate applies to search, the picker, compare and saving. Saving outside your
+preference isn't just hidden in the UI — the operation rejects it, in the mock
+client and in `server/routes.ts` alike.
 
 **The friends feed is the one exception.** You see friends' reviews of any bathroom
 regardless of type — that's the whole point of a social feed — but every feed row
@@ -69,23 +69,33 @@ frontend, the mock client and the server all filter through the same function.
 This is the core mechanic. Build it first; everything else is a list around it.
 
 1. Pick a bathroom from the catalogue.
-2. Rate the five dimensions — cleanliness, accessibility, hygiene products,
-   privacy, smell (1–5 each) — plus an optional note.
-3. Bucket it: loved it / fine / never again.
-4. The app runs a comparison duel *within that bucket*: "which was better?" against
+2. Give it 1–5 stars. That is the only input that touches the score, and it picks
+   the band via `bucketForRating()`: 4–5★ loved, 3★ fine, 1–2★ never again. There is
+   no separate "overall verdict" step — asking twice invites two answers that
+   disagree.
+3. The app runs a comparison duel *within that band*: "which was better?" against
    bathrooms you've already reviewed, binary-search style, ~3 comparisons max. Each
    answer halves the candidate range.
-5. Your final position in your own ordered list produces the score, 0.0–10.0, spread
-   across the bucket's band (loved ≈ 6.7–10, fine ≈ 3.4–6.6, never again ≈ 0–3.3).
+4. Your final position in your own ordered list produces the score, 0.0–10.0, spread
+   across the band (loved ≈ 6.7–10, fine ≈ 3.4–6.6, never again ≈ 0–3.3).
    **The score is derived from rank. It is never typed in by the user.**
-6. The very first review skips the duel and lands mid-bucket.
+5. The very first review skips the duel and lands mid-band.
+
+**A bathroom has exactly one score.** The optional detail ratings — cleanliness,
+accessibility, smell, hygiene, privacy, and sanitary products in women's washrooms
+only (`detailKeysFor`) — are notes about the room and are **never averaged into
+anything**. A score is relative to everything else you've rated; folding an absolute
+1–5 into it would be two scoring systems arguing. `client.test.ts` pins this: the
+same review with all-1s details scores identically to one with no details at all.
 
 Consequences worth holding onto:
 
 - Inserting a new bathroom above an old one changes the old one's score. Persist
   **rank**; compute score from rank order on read. Don't store a score and let it rot.
 - A bathroom has two numbers: *your* score and the global score (the mean of every
-  user's personal score). Show both, never conflate them, always label which is which.
+  user's personal score). Show both, never conflate them, always label which is which
+  — that's what `ScorePair` is for. A score you haven't given is a dash, not a zero
+  and not a "new" badge.
 - The compare screen is the ranking engine, not a side feature. It needs a standalone
   entry point (re-rank two things you've already reviewed), but its main job is the
   tail end of the review flow.
@@ -95,38 +105,57 @@ Consequences worth holding onto:
 Plain components under `src/components/`, rendered by `App.tsx` inside `PhoneFrame`.
 `App.tsx` holds a tagged-union `Screen` in `useState` — no router; the review flow's
 steps carry data (the draft, the result) that a URL would have to invent a way to
-hold. Shared pieces live in `components/chrome.tsx` and `components/icons.tsx`;
-colours, labels and formatters in `lib/display.ts`.
+hold. Shared pieces live in `components/chrome.tsx`; colours, labels and formatters
+in `lib/display.ts`.
 
-1. **Auth** — Register: username, display name, `washroom_pref` (required; explain in
-   one sentence that it changes what you see). Login: username only. No password, no
-   token, no sessions table. The current user id lives in `localStorage` under one
-   key, read only by `src/api.ts` — components never touch `localStorage`. Mocks ship
-   a signed-in default user so the rest of the app is one tap away.
-2. **Review flow** — `RateSelectScreen` (the picker, already filtered by
-   `washroom_pref`) → `RateScoreScreen` (five star rows, note, then the bucket).
-   The number in the rate header is the star average and is labelled FIRST TAKE,
-   not a score — the score doesn't exist until the duel runs. Opening the flow from
-   a bathroom's detail page skips step 1, since it's already chosen.
-3. **Compare** — `CompareScreen`, the duel itself. Two cards, tap the better one;
-   `CompareResultScreen` then reveals the score and the window of your list around
-   where it landed. The duel's binary search lives in `src/lib/duel.ts`, pure and
-   synchronous — the API only ever hears the final position.
-4. **My list** — everything you've reviewed, ordered by your score descending, score
-   on the right. The payoff screen: make it look good empty *and* at fifteen rows.
-   Second tab: **want-to-go**, bathrooms you haven't reviewed but flagged to try.
-5. **Browse** — the catalogue, gender-gated, grouped by building then floor, showing
-   the global score and your score when you have one. Filter by floor and by tag.
-6. **Friends feed** — reviews from people you follow, newest first, type badge on
-   every row. Follow is instant and one-directional: search a username, tap Follow.
-   No requests, no accept/decline, no pending state.
-7. **Profile** — username, `washroom_pref`, count reviewed, average score you give,
-   your top 3 podium. Tabs for **Bookmarks** and for **Following / Followers** with
-   counts. Tapping any user opens their profile read-only: their list, their counts.
+Five slots in the tab bar so the rate button sits in the middle:
+**Home · Rankings · (+) · Saved · Profile**.
 
-Bookmarks and want-to-go are different things: a bookmark is "saved", it lives on the
-profile; want-to-go is "I intend to review this", it lives on My list. Both are
-gender-gated. Keep them separate.
+1. **Auth** — Register: name, email, username, then `washroom_pref` on a step of its
+   own, because it decides what the whole app will show this person. Login is email
+   only: no password is checked, no token, no sessions table. The current user id
+   lives in `localStorage` under one key, touched only by `src/api.ts`,
+   `src/mocks/client.ts` and `src/session.ts` — components never see storage. Mocks
+   ship a signed-in default user so the app is one tap away.
+2. **Home** — the feed, with search layered *over* it: results drop into a panel
+   under the field and the feed stays put. No building filter, no floor chips, no
+   sort control, no stat tiles. Searching is how you narrow; a fixed row of F1/F2/F3
+   buttons only makes sense in a two-building app.
+3. **Review flow** — `RateSelectScreen` (search only — it deliberately does *not*
+   open on the whole catalogue, which is a wall rather than a starting point; the
+   empty state offers what people you follow have rated and you haven't) →
+   `RateScoreScreen` (one star row, then optional details, photos and a note).
+   Opening the flow from a bathroom's detail page skips step 1.
+4. **Compare** — `CompareScreen`, the duel. Two cards, tap the better one;
+   `CompareResultScreen` reveals the score and the window of your list around where
+   it landed. The binary search is in `src/lib/duel.ts`, pure and synchronous — the
+   API only ever hears the final position.
+5. **Detail** — the campus average and your score, side by side and labelled, plus
+   your photos, note and details if you've rated it. Individual friends' ratings are
+   *not* here; they live in the feed attached to a person and a moment.
+6. **Rankings** — everything you've rated, best first. No podium and no medals: the
+   list is already ordered, so a trophy stand restated the top three in a second
+   visual language and pushed the real list below the fold. Rank is a number in a
+   column, the same for #1 as for #12.
+7. **Saved** — your bookmarks. Its own tab, not a tab inside Profile: it's a list you
+   open standing in a hallway.
+8. **Profile** — name, `washroom_pref`, rated count, following/followers, top rated.
+   The counts are buttons; they open `PeopleScreen`, which is where finding and
+   following people lives. Following is instant and one-directional — no request, no
+   accept, no pending state.
+
+Design rules that kept getting re-litigated, so they're written down:
+
+- **No decorative icons.** Buttons say what they do in words. The star is the only
+  drawn thing left, because it's the rating control rather than a label for one.
+- **A bathroom's name is never truncated.** `E7 3rd Floor — North Wing, beside the
+  stairwell` is the only thing distinguishing it from its neighbour, and the ellipsis
+  ate exactly that part. It wraps. (Person names may still truncate — a clipped name
+  is recoverable.)
+- **Nothing repeats what the name already says.** The name contains the building and
+  the floor, so there is no building tile and no "Floor 3" line beside it.
+- **Three score colours**, green / yellow / red, and nothing else competes with them.
+  Per-building colours are gone for the same reason.
 
 ### Data shape
 
@@ -134,11 +163,15 @@ Contract-first, same order as always: types + operations in `shared/api.ts` →
 fixtures in `src/mocks/data.ts` → `src/mocks/client.ts` and `src/api.ts` → then
 `server/schema.ts` + `server/routes.ts` catch up.
 
-Expected domain types: `User`, `Bathroom` (the catalogue row — building, floor, room
-code, `washroom_type`, tags), `Review` (user, bathroom, four ratings, note, quick
-tags, bucket, rank), `Follow`, `Bookmark`, `WantToGo`. These replace the scaffold's
-`Item`; the three compile-time guards stay exactly where they are, just pointed at the
-new types.
+Expected domain types: `User`, `Bathroom` (the catalogue row — building, floor,
+location, `washroom_type`, `accessible`), `Review` (user, bathroom, stars, the
+optional details, photos, note, bucket, position), `Follow`, `Bookmark`, `WantToGo`.
+These replace the scaffold's `Item`; the three compile-time guards stay exactly where
+they are, just pointed at the new types.
+
+`WantToGo` is still in the contract but has no UI: its only "add" control was on the
+detail screen, which was pared back, so the tab could only ever shrink. The ops are
+intact if it comes back.
 
 Seed data is not optional here, and it isn't duplicated: `shared/catalogue.ts` holds
 the washrooms and `shared/demo.ts` holds the people, follows and reviews. Both
@@ -160,9 +193,15 @@ reviews point at them.
 
 `src/mocks/client.test.ts` (`bun test`) covers the rules that both implementations
 have to hold: the gate refuses rather than hides, the feed crosses types and flags
-what you can't use, scores stay inside their bucket's band, inserting at the top
-moves what was there, re-rating replaces instead of stacking, and the duel costs
+what you can't use, scores stay inside their band, inserting at the top moves what
+was there, re-rating replaces instead of stacking, detail ratings never move the
+score, sanitary products are dropped outside women's washrooms, and the duel costs
 ⌈log₂(n+1)⌉ questions. When `server/routes.ts` lands, it has to pass the same list.
+
+`src/render.test.tsx` server-renders every screen against real fixtures. Effects
+don't run under `renderToString`, so fetching screens only reach their loading state
+— that still catches a crash at module scope — while prop-driven ones render in full,
+which is where the risky indexing lives.
 
 ## Git
 

@@ -11,7 +11,6 @@ import { useState } from "react";
 import type { WashroomType } from "../../shared/api";
 import { register } from "../api";
 import { gradient, palette, prefBlurb, washroomMeta } from "../lib/display";
-import { BackIcon, CheckIcon } from "./icons";
 import { Notice } from "./chrome";
 
 const PREF_OPTIONS: WashroomType[] = ["male", "female", "universal"];
@@ -56,7 +55,7 @@ export function RegisterScreen({ onDone, onLogin }: { onDone: () => void; onLogi
             className="-ml-1 mb-6 flex items-center gap-1"
             style={{ color: palette.periwinkle, fontWeight: 600, fontSize: 14 }}
           >
-            <BackIcon /> Back
+            ← Back
           </button>
           <div className="mb-1 flex items-center gap-2">
             <span style={{ fontSize: 20 }}>🚻</span>
@@ -90,12 +89,6 @@ export function RegisterScreen({ onDone, onLogin }: { onDone: () => void; onLogi
                   boxShadow: selected ? `0 4px 20px ${meta.color}22` : "0 2px 8px #0000000A",
                 }}
               >
-                <div
-                  className="flex flex-shrink-0 items-center justify-center"
-                  style={{ width: 52, height: 52, borderRadius: 16, background: meta.bg }}
-                >
-                  <span style={{ fontSize: 24, color: meta.color }}>{meta.icon}</span>
-                </div>
                 <div className="flex-1 text-left">
                   <div style={{ fontSize: 16, fontWeight: 700, color: palette.charcoal }}>{meta.label}</div>
                   <div style={{ fontSize: 12, color: palette.muted, marginTop: 2 }}>{prefBlurb[option]}</div>
@@ -110,7 +103,7 @@ export function RegisterScreen({ onDone, onLogin }: { onDone: () => void; onLogi
                     background: selected ? meta.color : "transparent",
                   }}
                 >
-                  {selected && <CheckIcon />}
+                  {selected && <span style={{ color: "white", fontSize: 11, lineHeight: 1 }}>✓</span>}
                 </div>
               </button>
             );
