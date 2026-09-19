@@ -1,7 +1,7 @@
 /**
  * One post in the feed: who rated what, and what they thought.
  *
- * This is the one surface that crosses the gender gate on purpose — you see a
+ * This is the one surface that crosses the gender gate on purpose, you see a
  * friend's review of any washroom, which is the whole point of a feed. What keeps
  * that safe is the badge, which is never optional here. A post about a washroom
  * you don't use is read-only and says so.
@@ -65,7 +65,7 @@ export function FeedCard({
           className="mt-2 px-3 py-2"
           style={{ fontSize: 11, fontWeight: 600, color: palette.faint, background: palette.bg, borderRadius: 10 }}
         >
-          {washroomMeta[bathroom.washroom_type].label} — not one you use, so you can't rate or save it.
+          {washroomMeta[bathroom.washroom_type].label}. Not one you use, so you can't rate or save it.
         </p>
       )}
     </div>

@@ -1,5 +1,5 @@
 /**
- * The cold-open. Pre-auth, so it deliberately shows no real data — the sample
+ * The cold-open. Pre-auth, so it deliberately shows no real data, the sample
  * tiles are decoration, not a leak of somebody's rankings.
  */
 

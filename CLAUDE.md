@@ -8,13 +8,13 @@ alwaysApply: false
 
 Bun fullstack app: one process serves the React frontend and the JSON API.
 Entry point is `server/index.ts`. Run with `bun dev`. On a fresh clone the tables must
-be created first with `bun run db:push` — the schema is NOT created at server boot.
+be created first with `bun run db:push`, the schema is NOT created at server boot.
 Sample rows: `bun run db:seed`.
 
 Data access goes through Drizzle ORM over `bun:sqlite`:
 
 - `server/schema.ts` is the single source of truth for the database. Edit it, then
-  `bun run db:push` to apply — never hand-write DDL or `ALTER TABLE`.
+  `bun run db:push` to apply, never hand-write DDL or `ALTER TABLE`.
 - Queries stay synchronous (`.all()` / `.get()` / `.run()`). Don't make handlers async
   just to query.
 - `server/contract.ts` is a type-only guard asserting the Drizzle row still satisfies
@@ -25,11 +25,11 @@ Data access goes through Drizzle ORM over `bun:sqlite`:
 Localhost-only by design: no deploy target, no build or static-export step. Don't add
 either back without being asked.
 
-## püpi — what we're building
+## püpi, what we're building
 
 Beli, for bathrooms. A mobile app (390×844, no desktop layout) for rating and
 personally ranking every washroom in the E5 and E7 Waterloo Engineering buildings.
-Lowercase with the umlaut — `püpi` — everywhere in user-facing copy.
+Lowercase with the umlaut, `püpi`, everywhere in user-facing copy.
 
 ### The one hard rule
 
@@ -41,7 +41,7 @@ is a bug, not a feature.
 
 ### Washroom types and the visibility rule
 
-`washroom_type` is `"female" | "male" | "universal"`. There is no "accessible" type —
+`washroom_type` is `"female" | "male" | "universal"`. There is no "accessible" type,
 accessibility is a detail rating and a flag on the room, not a category.
 
 Every user picks a `washroom_pref` (the same three values) at register. It gates what
@@ -52,11 +52,11 @@ they can see:
 - `universal` → universal only
 
 The gate applies to search, the picker, compare and saving. Saving outside your
-preference isn't just hidden in the UI — the operation rejects it, in the mock
+preference isn't just hidden in the UI, the operation rejects it, in the mock
 client and in `server/routes.ts` alike.
 
 **The friends feed is the one exception.** You see friends' reviews of any bathroom
-regardless of type — that's the whole point of a social feed — but every feed row
+regardless of type, that's the whole point of a social feed, but every feed row
 renders an explicit type badge so it is never ambiguous which washroom is being
 discussed. A feed row for a bathroom you can't use is read-only: no bookmark, no
 review, no compare.
@@ -64,14 +64,14 @@ review, no compare.
 Implement the gate once, as a helper in `shared/api.ts` (`visibleTypes(pref)`), so the
 frontend, the mock client and the server all filter through the same function.
 
-### Scoring — pairwise, not stars
+### Scoring, pairwise, not stars
 
 This is the core mechanic. Build it first; everything else is a list around it.
 
 1. Pick a bathroom from the catalogue.
 2. Give it 1–5 stars. That is the only input that touches the score, and it picks
    the band via `bucketForRating()`: 4–5★ loved, 3★ fine, 1–2★ never again. There is
-   no separate "overall verdict" step — asking twice invites two answers that
+   no separate "overall verdict" step, asking twice invites two answers that
    disagree.
 3. The app runs a comparison duel *within that band*: "which was better?" against
    bathrooms you've already reviewed, binary-search style, ~3 comparisons max. Each
@@ -81,10 +81,13 @@ This is the core mechanic. Build it first; everything else is a list around it.
    **The score is derived from rank. It is never typed in by the user.**
 5. The very first review skips the duel and lands mid-band.
 
-**A bathroom has exactly one score.** The optional detail ratings — cleanliness,
-accessibility, smell, hygiene, privacy, and sanitary products in women's washrooms
-only (`detailKeysFor`) — are notes about the room and are **never averaged into
-anything**. A score is relative to everything else you've rated; folding an absolute
+**A bathroom has exactly one score.** The detail ratings (`detailKeysFor`), now
+cleanliness, accessibility, smell and privacy, are notes about the room and are
+**never averaged into anything**. They are shown expanded rather than behind an
+"add" control, and never labelled optional: six rows of stars under the one that
+counts turned a quick rating into a chore, four does not. `hygiene` and `products`
+keep their columns in `ReviewRow`, so putting either back is one line in
+`detailKeysFor`. A score is relative to everything else you've rated; folding an absolute
 1–5 into it would be two scoring systems arguing. `client.test.ts` pins this: the
 same review with all-1s details scores identically to one with no details at all.
 
@@ -93,9 +96,10 @@ Consequences worth holding onto:
 - Inserting a new bathroom above an old one changes the old one's score. Persist
   **rank**; compute score from rank order on read. Don't store a score and let it rot.
 - A bathroom has two numbers: *your* score and the global score (the mean of every
-  user's personal score). Show both, never conflate them, always label which is which
-  — that's what `ScorePair` is for. A score you haven't given is a dash, not a zero
-  and not a "new" badge.
+  user's personal score). Wherever both are shown they are labelled, which is what
+  `ScorePair` is for. Where a screen ranks by one of them, show that one alone:
+  Near me prints only the number its filter sorted by. A score you haven't given is
+  a dash, not a zero and not a "new" badge.
 - The compare screen is the ranking engine, not a side feature. It needs a standalone
   entry point (re-rank two things you've already reviewed), but its main job is the
   tail end of the review flow.
@@ -103,59 +107,90 @@ Consequences worth holding onto:
 ### Screens
 
 Plain components under `src/components/`, rendered by `App.tsx` inside `PhoneFrame`.
-`App.tsx` holds a tagged-union `Screen` in `useState` — no router; the review flow's
+`App.tsx` holds a tagged-union `Screen` in `useState`, no router; the review flow's
 steps carry data (the draft, the result) that a URL would have to invent a way to
 hold. Shared pieces live in `components/chrome.tsx`; colours, labels and formatters
 in `lib/display.ts`.
 
-Five slots in the tab bar so the rate button sits in the middle:
-**Home · Rankings · (+) · Saved · Profile**.
+Five slots in the tab bar so the rate button sits dead centre:
+**Home · Near me · (+) · Rankings · Profile**. The two you reach for mid-errand
+flank the rate button, so the thumb lands on them without crossing the bar.
 
-1. **Auth** — Register: name, email, username, then `washroom_pref` on a step of its
+1. **Auth.** Register: name, email, username, then `washroom_pref` on a step of its
    own, because it decides what the whole app will show this person. Login is email
    only: no password is checked, no token, no sessions table. The current user id
    lives in `localStorage` under one key, touched only by `src/api.ts`,
-   `src/mocks/client.ts` and `src/session.ts` — components never see storage. Mocks
+   `src/mocks/client.ts` and `src/session.ts`, components never see storage. Mocks
    ship a signed-in default user so the app is one tap away.
-2. **Home** — the feed, with search layered *over* it: results drop into a panel
-   under the field and the feed stays put. No building filter, no floor chips, no
-   sort control, no stat tiles. Searching is how you narrow; a fixed row of F1/F2/F3
-   buttons only makes sense in a two-building app.
-3. **Review flow** — `RateSelectScreen` (search only — it deliberately does *not*
-   open on the whole catalogue, which is a wall rather than a starting point; the
-   empty state offers what people you follow have rated and you haven't) →
-   `RateScoreScreen` (one star row, then optional details, photos and a note).
-   Opening the flow from a bathroom's detail page skips step 1.
-4. **Compare** — `CompareScreen`, the duel. Two cards, tap the better one;
-   `CompareResultScreen` reveals the score and the window of your list around where
-   it landed. The binary search is in `src/lib/duel.ts`, pure and synchronous — the
-   API only ever hears the final position.
-5. **Detail** — the campus average and your score, side by side and labelled, plus
+2. **Home.** The feed: what everyone you follow has rated, newest first. No
+   building filter, no floor chips, no sort control, no stat tiles. The field at
+   the top is a button dressed as one; tapping it opens the search screen.
+3. **Search** (`SearchScreen`). A screen, not a panel over the feed. One component
+   serves two callers: from Home it opens a washroom, from the rate button it picks
+   one to review, and only `onPick` differs. Floor chips appear *only* once the
+   results have narrowed to a single building with more than one floor, and tapping
+   the active chip clears it, so there is no "all floors" chip. Before you type it
+   lists the washrooms you most recently opened, not the strings you most recently
+   typed: a past search term is one tap further from the room than the room is.
+   Recents are ids in `localStorage` (`src/lib/recents.ts`), resolved against the
+   live catalogue on render so a row is never a stale copy.
+4. **Review flow.** Search picks the washroom → `RateScoreScreen` (one star row,
+   then the four details, photos and a note). No "step 1 of 2" counter. Opening the
+   flow from a bathroom's detail page skips the search.
+5. **Compare** (`CompareScreen`), the duel. Two cards side by side, left or right,
+   tap the better one: "which was better" is a symmetrical question and a stacked
+   pair answers it badly, since the top card reads as the default. The cards are a
+   fixed height rather than stretched to the screen, and the escape hatch is a
+   short **Skip** rather than a full-width sentence. The pick applies on the tick
+   you tap, with no confirmation animation to sit through. `CompareResultScreen`
+   reveals the score and the window of your list around where it landed. The binary
+   search is in `src/lib/duel.ts`, pure and synchronous, and the API only ever hears
+   the final position.
+6. **Detail.** The campus average and your score, side by side and labelled, plus
    your photos, note and details if you've rated it. Individual friends' ratings are
    *not* here; they live in the feed attached to a person and a moment.
-6. **Rankings** — everything you've rated, best first. No podium and no medals: the
+7. **Near me** (`NearMeScreen`). The best washrooms by distance, closest building
+   first. Distance is per *building*: every washroom in E7 is the same place to a
+   GPS. Location is asked for, never assumed, and a refusal falls back to picking
+   the building you're in. A dropdown chooses what the list is ranked by, campus
+   average or my score, and the row prints **only** that number.
+8. **Rankings.** Everything you've rated, best first. No podium and no medals: the
    list is already ordered, so a trophy stand restated the top three in a second
    visual language and pushed the real list below the fold. Rank is a number in a
    column, the same for #1 as for #12.
-7. **Saved** — your bookmarks. Its own tab, not a tab inside Profile: it's a list you
-   open standing in a hallway.
-8. **Profile** — name, `washroom_pref`, rated count, following/followers, top rated.
-   The counts are buttons; they open `PeopleScreen`, which is where finding and
-   following people lives. Following is instant and one-directional — no request, no
-   accept, no pending state.
+9. **Profile.** Name, bio, `washroom_pref`, then one strip of three cells: rated,
+   following, followers. Rated carries the accent because it is the only one of the
+   three that scores anything; the other two are buttons that open `PeopleScreen`,
+   which is where finding and following people lives. Following is instant and
+   one-directional, no request, no accept, no pending state.
+
+   The body is tabbed, defaulting to **Recent activity**: your reviews newest first,
+   each with its current rank and score. The second tab is **Bookmarked**. There is
+   no "top rated" section, because best-first is the whole of the Rankings screen
+   and a second, shorter copy of it is not a profile. Bookmarks live here rather
+   than in a tab of their own, which is what freed the fifth slot for Near me.
+
+   `Profile.recent` is `ProfileActivity[]`, capped at `PROFILE_ACTIVITY_LIMIT`.
+   Rank on an activity row comes from the same `scoredReviews()` the rankings screen
+   reads, so the two can never disagree about where a washroom sits.
 
 Design rules that kept getting re-litigated, so they're written down:
 
-- **No decorative icons.** Buttons say what they do in words. The star is the only
-  drawn thing left, because it's the rating control rather than a label for one.
-- **A bathroom's name is never truncated.** `E7 3rd Floor — North Wing, beside the
+- **No decorative icons.** Buttons say what they do in words. The exceptions earn
+  it: the five tab-bar glyphs, the star (the rating control, not a label for one),
+  the bookmark, and the caret on a dropdown.
+- **A bathroom's name is never truncated.** `E7 3rd Floor · North Wing, beside the
   stairwell` is the only thing distinguishing it from its neighbour, and the ellipsis
-  ate exactly that part. It wraps. (Person names may still truncate — a clipped name
+  ate exactly that part. It wraps. (Person names may still truncate, a clipped name
   is recoverable.)
 - **Nothing repeats what the name already says.** The name contains the building and
   the floor, so there is no building tile and no "Floor 3" line beside it.
 - **Three score colours**, green / yellow / red, and nothing else competes with them.
   Per-building colours are gone for the same reason.
+- **No em dashes anywhere in this repository.** Copy, comments, commit messages,
+  fixtures, docs. `fullLocation()` joins with a middot; prose uses a comma, a colon
+  or a full stop. A repo-wide search for U+2014 should come back empty, which is
+  also why this rule doesn't spell one out.
 
 ### Data shape
 
@@ -163,7 +198,7 @@ Contract-first, same order as always: types + operations in `shared/api.ts` →
 fixtures in `src/mocks/data.ts` → `src/mocks/client.ts` and `src/api.ts` → then
 `server/schema.ts` + `server/routes.ts` catch up.
 
-Expected domain types: `User`, `Bathroom` (the catalogue row — building, floor,
+Expected domain types: `User`, `Bathroom` (the catalogue row, building, floor,
 location, `washroom_type`, `accessible`), `Review` (user, bathroom, stars, the
 optional details, photos, note, bucket, position), `Follow`, `Bookmark`, `WantToGo`.
 These replace the scaffold's `Item`; the three compile-time guards stay exactly where
@@ -176,16 +211,23 @@ intact if it comes back.
 Seed data is not optional here, and it isn't duplicated: `shared/catalogue.ts` holds
 the washrooms and `shared/demo.ts` holds the people, follows and reviews. Both
 `server/seed.ts` and `src/mocks/data.ts` read from them, so a mock demo and a live
-demo show the same feed and the same global scores — which is what makes `?mock=0`
+demo show the same feed and the same global scores, which is what makes `?mock=0`
 evidence the backend works rather than just a different-looking app.
 
-Two things the fixtures have to keep being true, because the screens read as broken
-otherwise: every demo review points at a washroom its author is actually allowed to
-use, and different people disagree about the same bathroom. If everyone's #1 is the
-same room, "your score" and "campus average" print the same number and the whole
-distinction the app is built on disappears from the demo.
+Three things the fixtures have to keep being true, because the screens read as
+broken otherwise:
 
-⚠️ The catalogue rooms are plausible but **not surveyed** — placeholders in the right
+- Every demo review points at a washroom its author is actually allowed to use,
+  or the gender gate looks broken on first paint.
+- Different people disagree about the same bathroom. If everyone's #1 is the same
+  room, "your score" and "campus average" print the same number and the whole
+  distinction the app is built on disappears from the demo.
+- `created_at` does not track rank for the signed-in demo user. Profile activity is
+  sorted by recency; if somebody happens to have rated their favourites first, that
+  tab renders as the rankings screen upside down and the two look like one feature
+  drawn twice.
+
+⚠️ The catalogue rooms are plausible but **not surveyed**, placeholders in the right
 shape, waiting on the real E5/E7 audit. Ids are the part worth keeping stable, since
 reviews point at them.
 
@@ -195,52 +237,54 @@ reviews point at them.
 have to hold: the gate refuses rather than hides, the feed crosses types and flags
 what you can't use, scores stay inside their band, inserting at the top moves what
 was there, re-rating replaces instead of stacking, detail ratings never move the
-score, sanitary products are dropped outside women's washrooms, and the duel costs
-⌈log₂(n+1)⌉ questions. When `server/routes.ts` lands, it has to pass the same list.
+score, sanitary products are dropped outside women's washrooms, profile activity is
+newest-first and agrees with the rankings on rank, and the duel costs
+⌈log₂(n+1)⌉ questions. `server/routes.test.ts` holds the live backend to the same
+list over HTTP, so every rule is asserted twice, once per implementation.
 
 `src/render.test.tsx` server-renders every screen against real fixtures. Effects
-don't run under `renderToString`, so fetching screens only reach their loading state
-— that still catches a crash at module scope — while prop-driven ones render in full,
+don't run under `renderToString`, so fetching screens only reach their loading state,
+which still catches a crash at module scope, while prop-driven ones render in full,
 which is where the risky indexing lives.
 
 ## Git
 
 Work on `main` and push straight to it. Don't create a branch, don't open a PR, don't
-ask whether to branch first — this is a hackathon repo with no review gate, and the
+ask whether to branch first, this is a hackathon repo with no review gate, and the
 usual "branch off the default branch" reflex just adds friction here.
 
 Committing and pushing still only happen when asked.
 
-Never reference `process.env` from anything under `src/`. It is browser code — an
+Never reference `process.env` from anything under `src/`. It is browser code, an
 unset var ships a literal `process.env.X` and the page dies with `Can't find
 variable: process`, and a `typeof process` guard cannot rescue it (the guard is
 always false in a browser, so an inlined value is never read). Config that the
 frontend needs comes from the server over HTTP, or from the URL.
 
-Layered on purpose so two people can work in parallel — respect the boundaries:
+Layered on purpose so two people can work in parallel, respect the boundaries:
 
-- `shared/api.ts` — the contract (types + pure helpers + URL builders + the
+- `shared/api.ts`, the contract (types + pure helpers + URL builders + the
   `ApiClient` operation surface). Imports nothing; ships to the browser. Both sides
   depend on it, so changing it breaks both builds. `visibleTypes()` and
   `scoreForPosition()` live here because both halves must agree on them exactly.
-- `shared/catalogue.ts` — the fixed E5/E7 washroom list, and `shared/demo.ts` — the
+- `shared/catalogue.ts`, the fixed E5/E7 washroom list, and `shared/demo.ts`, the
   demo people and their reviews. Here rather than duplicated because `server/seed.ts`
   and `src/mocks/data.ts` both need the same rows with the same ids, and neither may
   import from the other. Types only as dependencies; safe in the browser bundle.
-- `server/` — `db.ts` (schema), `routes.ts` (handlers), `index.ts` (wiring).
+- `server/`, `db.ts` (schema), `routes.ts` (handlers), `index.ts` (wiring).
   Never imports from `src/`.
-- `src/` — React. `src/api.ts` is the only file allowed to call `fetch` or know a
+- `src/`, React. `src/api.ts` is the only file allowed to call `fetch` or know a
   URL; components import functions from it. Never imports from `server/`.
-- `src/mocks/` — the fixture-backed `ApiClient`. Frontend territory; the backend
+- `src/mocks/`, the fixture-backed `ApiClient`. Frontend territory; the backend
   person never opens it. Never imports from `server/` either.
-- `src/session.ts` — the signed-in user id. Only `src/api.ts` and `src/mocks/client.ts`
+- `src/session.ts`, the signed-in user id. Only `src/api.ts` and `src/mocks/client.ts`
   touch it; components never see storage.
-- `Design bathroom rating app/` — the Figma Make export the UI was ported from.
+- `Design bathroom rating app/`, the Figma Make export the UI was ported from.
   Reference material and its own Vite project; excluded in `tsconfig.json`. Don't
   build against it and don't import from it.
-- `src/components/ui/` — generated shadcn primitives. Don't hand-edit.
+- `src/components/ui/`, generated shadcn primitives. Don't hand-edit.
 
-After changing `shared/api.ts`, run `bun run typecheck` — it catches drift between
+After changing `shared/api.ts`, run `bun run typecheck`, it catches drift between
 the two halves.
 
 ## Who owns the contract
@@ -255,34 +299,34 @@ failing typecheck is the message getting through, not damage to repair.
 
 The frontend never blocks on the API. It is built against `src/mocks/`, which
 implements the same `ApiClient` surface with hand-written fixtures. **The whole UI must
-stay reachable and demoable with the server stopped** — if a screen only works against
+stay reachable and demoable with the server stopped**, if a screen only works against
 a live backend, that's a bug in the screen.
 
-- `src/mocks/data.ts` — fixtures typed as the contract's domain types. **When
+- `src/mocks/data.ts`, fixtures typed as the contract's domain types. **When
   `shared/api.ts` changes, these change in the same commit.** They won't compile
-  otherwise, and that is the enforcement — not a convention anyone has to remember.
-- `src/mocks/client.ts` — the `ApiClient` implementation. Mutates an in-memory copy of
+  otherwise, and that is the enforcement, not a convention anyone has to remember.
+- `src/mocks/client.ts`, the `ApiClient` implementation. Mutates an in-memory copy of
   the fixtures so create/update/delete really work in-session and reset on reload.
   Mirrors `server/routes.ts` where the behaviour is observable. No latency
-  simulation, no injected failures — don't add either without being asked.
-- `src/mocks/enabled.ts` — `USE_MOCKS`, read from the URL (never `process.env`).
+  simulation, no injected failures, don't add either without being asked.
+- `src/mocks/enabled.ts`, `USE_MOCKS`, read from the URL (never `process.env`).
   Mocks are ON by default; `?mock=0` hits the real API. Hydrating against the real
   backend for good is flipping that one default.
 
 Three compile-time guards now keep the halves honest. Run `bun run typecheck` after
 touching `shared/api.ts`:
 
-- `server/contract.ts` — a Drizzle row still satisfies `BathroomRow` / `User` /
-  `ReviewRow`. **Currently a stub**: the schema still describes the scaffold's
-  `items` table, so there's nothing yet to assert. Restore one line per table as
-  each lands; the file lists them.
-- `src/api.ts` — the HTTP client still satisfies `ApiClient`.
-- `src/mocks/client.ts` — the mock client still satisfies `ApiClient`.
+- `server/contract.ts`, a Drizzle row still satisfies `BathroomRow` / `User` /
+  `ReviewRow`. All three are live. The join tables (follows, bookmarks, want_to_go)
+  aren't guarded because the contract has no type for them: they're only ever served
+  as `UserSummary` or `Bathroom`, which the handlers compose.
+- `src/api.ts`, the HTTP client still satisfies `ApiClient`.
+- `src/mocks/client.ts`, the mock client still satisfies `ApiClient`.
 
 ## Extending the frontend
 
 Feature descriptions arrive as long prose. Build them **inside** the existing skeleton,
-not around it — the scaffold is the spec for structure, the prose is the spec for
+not around it, the scaffold is the spec for structure, the prose is the spec for
 behaviour.
 
 - Screens are plain components under `src/components/`, rendered by `App.tsx` inside

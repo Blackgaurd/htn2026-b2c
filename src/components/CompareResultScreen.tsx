@@ -3,7 +3,7 @@
  *
  * The list underneath is a window around the new entry rather than the top five,
  * so you can see what it beat and what beat it. Every score shown is freshly
- * recomputed — inserting near the top really does nudge everything below, and this
+ * recomputed, inserting near the top really does nudge everything below, and this
  * is the screen where that's visible.
  */
 
@@ -14,15 +14,7 @@ import { ScoreChip, WashroomBadge } from "./chrome";
 
 const CONFETTI = ["#7B8CDE", "#9B78D4", "#7B8CDE", "#9B78D4", "#7B8CDE"];
 
-export function CompareResultScreen({
-  result,
-  onDone,
-  onSeeRankings,
-}: {
-  result: SubmitReviewResult;
-  onDone: () => void;
-  onSeeRankings: () => void;
-}) {
+export function CompareResultScreen({ result, onDone }: { result: SubmitReviewResult; onDone: () => void }) {
   const [revealed, setRevealed] = useState(false);
   const [listVisible, setListVisible] = useState(false);
 
@@ -149,13 +141,18 @@ export function CompareResultScreen({
       </div>
 
       <div className="phone-scroll flex-1 overflow-y-auto px-5 py-5">
-        <div
-          className="mb-3 flex items-center justify-between"
-          style={{ opacity: listVisible ? 1 : 0, transition: "opacity 0.4s ease" }}
+        <h3
+          className="mb-3"
+          style={{
+            fontSize: 15,
+            fontWeight: 700,
+            color: palette.charcoal,
+            opacity: listVisible ? 1 : 0,
+            transition: "opacity 0.4s ease",
+          }}
         >
-          <h3 style={{ fontSize: 15, fontWeight: 700, color: palette.charcoal }}>Your rankings</h3>
-          <span style={{ fontSize: 12, color: palette.periwinkle, fontWeight: 600 }}>Updated</span>
-        </div>
+          Your rankings
+        </h3>
 
         <div
           className="flex flex-col gap-2"
@@ -227,13 +224,6 @@ export function CompareResultScreen({
           }}
         >
           Done
-        </button>
-        <button
-          onClick={onSeeRankings}
-          className="mt-2 w-full py-3"
-          style={{ fontSize: 14, fontWeight: 600, color: palette.periwinkle }}
-        >
-          See full rankings →
         </button>
       </div>
     </div>

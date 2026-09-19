@@ -33,6 +33,7 @@ export const handlers = {
   register: route(session.register),
   login: route(session.login),
   me: route(session.me),
+  updateProfile: route(session.updateProfile),
 
   listBathrooms: route(catalogue.listBathrooms),
   getBathroom: route<"/api/bathrooms/:id">(catalogue.getBathroom),

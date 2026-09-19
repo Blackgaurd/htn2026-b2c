@@ -9,6 +9,7 @@ import { beforeEach, expect, test } from "bun:test";
 import {
   BUCKET_BANDS,
   MAX_REVIEW_PHOTOS,
+  PROFILE_ACTIVITY_LIMIT,
   canUse,
   detailKeysFor,
   round1,
@@ -129,7 +130,7 @@ test("the duel binary-searches: 7 opponents costs 3 questions, and it lands wher
   let duel = startDuel(opponents);
 
   let asked = 0;
-  // Always say the new one is worse — it should end up last.
+  // Always say the new one is worse, it should end up last.
   while (!duelDone(duel)) {
     expect(duelOpponent(duel)).not.toBeNull();
     duel = answerDuel(duel, false);
@@ -164,6 +165,30 @@ test("following is instant, one-directional, and changes the feed", async () => 
   expect(theirProfile.followers_count).toBeGreaterThan(0);
 });
 
+test("profile activity is newest first, and agrees with the rankings on rank", async () => {
+  const profile = await mockClient.getProfile();
+  const ranked = await mockClient.listMyRankings();
+
+  expect(profile.recent.length).toBeGreaterThan(1);
+  expect(profile.recent.length).toBeLessThanOrEqual(PROFILE_ACTIVITY_LIMIT);
+
+  // Newest first, which is a different order from best first: the fixtures rate
+  // the #1 washroom early on, so an activity list sorted by rank would be a
+  // second copy of the rankings screen rather than a history.
+  const stamps = profile.recent.map(entry => entry.review.created_at);
+  expect([...stamps].sort().reverse()).toEqual(stamps);
+  expect(profile.recent.map(entry => entry.rank)).not.toEqual(ranked.map(entry => entry.rank));
+
+  // Same reviews underneath, so the two screens can never disagree about where a
+  // washroom sits or what it scored.
+  for (const entry of profile.recent) {
+    const row = ranked.find(r => r.bathroom.id === entry.bathroom.id);
+    expect(row).toBeDefined();
+    expect(entry.rank).toBe(row!.rank);
+    expect(entry.review.score).toBe(row!.score);
+  }
+});
+
 test("the global score is the mean of everyone's personal score", async () => {
   const shared = CATALOGUE.find(b => b.id === 6)!;
   const detail = await mockClient.getBathroom(shared.id);
@@ -175,7 +200,7 @@ test("the global score is the mean of everyone's personal score", async () => {
   expect(detail.friend_reviews.length).toBeGreaterThan(0);
 });
 
-test("the catalogue is fixed — there is no operation that adds to it", async () => {
+test("the catalogue is fixed, there is no operation that adds to it", async () => {
   const listed = await mockClient.listBathrooms();
   expect(listed.every(b => CATALOGUE.some(row => row.id === b.id))).toBe(true);
   expect(Object.keys(mockClient).some(op => /create.*bathroom/i.test(op))).toBe(false);

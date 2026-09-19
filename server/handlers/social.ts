@@ -2,17 +2,25 @@
  * Social: the friends feed, user search, following, and profiles.
  *
  * This is where the gender gate has its two documented exceptions. `GET /api/feed`
- * returns reviews of **every** washroom type — that's the point of a social feed —
- * and marks each row `can_use` so the screen can render it read-only. `Profile.top`
- * is not gender-filtered either, for the same reason: you can see what a friend
- * ranked, and the badge says which washroom.
+ * returns reviews of **every** washroom type (that's the point of a social feed)
+ * and marks each row `can_use` so the screen can render it read-only.
+ * `Profile.recent` is not gender-filtered either, for the same reason: you can
+ * see what a friend rated, and the badge says which washroom.
  *
  * Following is instant and one-directional. No requests, no accept/decline, no
  * pending state. Mirrors `src/mocks/client.ts:427-499`.
  */
 
 import { and, eq } from "drizzle-orm";
-import { canUse, round1, type FeedEntry, type Profile, type UserSummary } from "../../shared/api";
+import {
+  canUse,
+  PROFILE_ACTIVITY_LIMIT,
+  round1,
+  type FeedEntry,
+  type Profile,
+  type ProfileActivity,
+  type UserSummary,
+} from "../../shared/api";
 import { db } from "../db";
 import {
   aggregates,
@@ -36,12 +44,12 @@ type IdReq = Request & { params: { id: string } };
 // ─── The feed ─────────────────────────────────────────────────────────────────
 
 /**
- * Reviews from everyone you follow, newest first — of *any* washroom type.
+ * Reviews from everyone you follow, newest first, of *any* washroom type.
  * `can_use` is what the row uses to decide whether its actions are live.
  *
  * The score on each entry is the **reviewer's** personal score, not the global
  * one: `scoredReviews()` replays that user's own ranking. `aggregates()` runs
- * once for the whole feed — it walks every review in the database, so calling it
+ * once for the whole feed: it walks every review in the database, so calling it
  * per row would be the one expensive mistake here.
  */
 export function listFeed(req: Request): FeedEntry[] {
@@ -73,7 +81,7 @@ export function listFeed(req: Request): FeedEntry[] {
 
 // ─── Following ────────────────────────────────────────────────────────────────
 
-/** An empty query lists everyone else, as suggestions — not an empty result. */
+/** An empty query lists everyone else, as suggestions, not an empty result. */
 export function searchUsers(req: Request): UserSummary[] {
   const viewer = requireUser(req);
   const raw = new URL(req.url).searchParams.get("q") ?? "";
@@ -125,8 +133,27 @@ export function deleteFollow(req: IdReq): UserSummary {
 // ─── Profiles ─────────────────────────────────────────────────────────────────
 
 /**
- * Someone's profile. Their top three is *not* gender-filtered — same rule as the
- * feed: you can see what a friend ranked, the badge says which washroom it was.
+ * The same reviews the rankings screen serves, newest first instead of best
+ * first. Rank still comes from `scoredReviews`, so an activity row and a
+ * rankings row can never disagree about where a washroom sits.
+ */
+function activityFor(userId: number): ProfileActivity[] {
+  const agg = aggregates();
+  const rooms = bathroomsById();
+
+  return scoredReviews(userId)
+    .map(({ review, score, rank }) => {
+      const room = rooms.get(review.bathroom_id);
+      if (!room) throw new HttpError(500, `review ${review.id} points at a washroom that is gone`);
+      return { review: withScore(review, score), bathroom: toBathroom(room, agg), rank };
+    })
+    .sort((a, b) => b.review.created_at.localeCompare(a.review.created_at) || b.review.id - a.review.id)
+    .slice(0, PROFILE_ACTIVITY_LIMIT);
+}
+
+/**
+ * Someone's profile. Their activity is *not* gender-filtered, same rule as the
+ * feed: you can see what a friend rated, the badge says which washroom it was.
  *
  * `following_count` counts edges where the target is the *follower*;
  * `followers_count` counts edges where they are the *followee*. Different
@@ -144,7 +171,7 @@ function profileFor(viewer: UserRow, target: UserRow): Profile {
       : null,
     following_count: edges.filter(e => e.follower_id === target.id).length,
     followers_count: edges.filter(e => e.followee_id === target.id).length,
-    top: ranked.slice(0, 3),
+    recent: activityFor(target.id),
   };
 }
 

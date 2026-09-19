@@ -3,14 +3,14 @@
 Bun + React + shadcn/ui + Drizzle ORM over `bun:sqlite`. One process serves the
 frontend and the API. Mobile-shaped UI, demoed from a laptop browser.
 
-Localhost only — not built to deploy. The frontend runs on fixtures by default so it
+Localhost only, not built to deploy. The frontend runs on fixtures by default so it
 never waits on the API; `?mock=0` switches it to real data from `data.db`.
 
 ## Run
 
 ```bash
 bun install
-bun run db:push    # create/update the tables — REQUIRED on a fresh clone
+bun run db:push    # create/update the tables, REQUIRED on a fresh clone
 bun run db:seed    # optional: sample rows so the list isn't empty
 bun dev            # http://localhost:3000
 ```
@@ -21,7 +21,7 @@ server boots, so without it every query fails with `no such table: items`.
 Other scripts:
 
 ```bash
-bun run typecheck  # tsc --noEmit — catches contract drift between the two halves
+bun run typecheck  # tsc --noEmit, catches contract drift between the two halves
 bun run db:studio  # Drizzle Studio: browse/edit data.db in a GUI
 bun run db:reset   # delete data.db and its WAL sidecars (stop the server first)
 ```
@@ -33,14 +33,14 @@ The split is by **directory**, so two people almost never touch the same file.
 ```
 shared/api.ts     ← FRONTEND owns it. The contract. Backend implements it.
 server/           ← backend person
-  schema.ts         Drizzle table definitions — single source of truth for the DB
+  schema.ts         Drizzle table definitions, single source of truth for the DB
   db.ts             connection (bun:sqlite wrapped in Drizzle)
   routes.ts         handlers  ← you live here
   contract.ts       type-only guard: schema must still satisfy shared/api.ts
   index.ts          wiring (thin; edit only when adding a new path)
   seed.ts           sample rows
 src/              ← frontend person
-  api.ts            typed client — the ONLY file that calls fetch
+  api.ts            typed client, the ONLY file that calls fetch
   mocks/            fixture-backed stand-in for the whole backend
   App.tsx           shell
   components/       screens  ← you live here
@@ -66,7 +66,7 @@ export const paths = {
 };
 ```
 
-Change a field here and `bun run typecheck` immediately fails on both sides — that's the
+Change a field here and `bun run typecheck` immediately fails on both sides, that's the
 feature. Say it out loud before you do it.
 
 ## Working in parallel
@@ -77,7 +77,7 @@ get built and demoed before a single handler exists. Add `?mock=0` to the URL to
 the same build at the real backend.
 
 `shared/api.ts` is the frontend's file. It declares what the UI needs; the backend
-catches up. A field in the contract with no column behind it is a to-do, not a bug — so
+catches up. A field in the contract with no column behind it is a to-do, not a bug, so
 don't shrink the contract to match the server.
 
 Adding an endpoint:
@@ -95,13 +95,13 @@ Step 3 can land hours later. Nothing waits on it.
 - **SQLite is server-only.** `bun:sqlite` opens a file; browsers can't. Anything touching
   the DB lives in `server/`.
 - **`data.db` is gitignored**, along with the `-wal`/`-shm` sidecars WAL mode creates.
-  Everyone gets their own local DB — schema is code, data is not.
+  Everyone gets their own local DB, schema is code, data is not.
 - **Schema changes:** edit `server/schema.ts`, then `bun run db:push`. The table is altered
-  in place and existing rows survive — no migration files, no reset. If the change could
+  in place and existing rows survive, no migration files, no reset. If the change could
   lose data (new `NOT NULL` column, dropped column), drizzle-kit asks for confirmation, so
   run it in a real terminal rather than piping its output.
 - **Drizzle wraps `bun:sqlite`; it doesn't replace it.** `server/db.ts` still opens the
-  `Database` and sets the WAL pragma. Queries stay synchronous — `.all()` / `.get()` /
+  `Database` and sets the WAL pragma. Queries stay synchronous, `.all()` / `.get()` /
   `.run()`, no `await`.
 - **`done` is a real boolean** end to end. SQLite stores 0/1, but the column is declared
   `integer("done", { mode: "boolean" })`, so nothing in the backend converts it by hand.

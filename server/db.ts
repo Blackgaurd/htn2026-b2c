@@ -1,10 +1,10 @@
 /**
- * Database connection. Backend territory — the frontend never imports this.
+ * Database connection. Backend territory, the frontend never imports this.
  *
  * `bun:sqlite` provides the driver; Drizzle wraps it for typed queries. Both are
  * synchronous, so handlers use `.all()` / `.get()` / `.run()` and never await.
  *
- * The schema lives in `schema.ts` and is applied with `bun run db:push` — it is
+ * The schema lives in `schema.ts` and is applied with `bun run db:push`; it is
  * NOT created here, so a fresh clone must push before the first request.
  */
 

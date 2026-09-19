@@ -1,14 +1,14 @@
 /**
  * The fixtures the frontend is built against.
  *
- * The rows themselves live in `shared/` — the catalogue in `shared/catalogue.ts`,
- * the people and their reviews in `shared/demo.ts` — because the backend seeds from
+ * The rows themselves live in `shared/`, the catalogue in `shared/catalogue.ts`,
+ * the people and their reviews in `shared/demo.ts`, because the backend seeds from
  * the exact same data. What this file adds is the *session copy*: a mutable snapshot
  * that `client.ts` edits so create/update/delete really work, and that a reload
  * throws away.
  *
  * These are typed as the contract's domain types, which is the whole enforcement
- * mechanism — add a required field in `shared/api.ts` and this file stops compiling
+ * mechanism, add a required field in `shared/api.ts` and this file stops compiling
  * until it's updated. **When the contract changes, these change in the same commit.**
  * `bun run typecheck` will not let you forget.
  */
@@ -31,7 +31,7 @@ export type FollowPair = { follower_id: number; followee_id: number };
 
 export type MockState = {
   users: DemoUser[];
-  /** The catalogue. Nothing in the app may push onto this — see CLAUDE.md. */
+  /** The catalogue. Nothing in the app may push onto this, see CLAUDE.md. */
   bathrooms: BathroomRow[];
   reviews: ReviewRow[];
   follows: FollowPair[];

@@ -1,5 +1,5 @@
 /**
- * Session: register, login, me.
+ * Session: register, login, me, and the one profile edit.
  *
  * The whole auth story, on purpose (CLAUDE.md): no tokens, no sessions table, no
  * hashing. The signed-in user arrives as the `x-pupi-user` header and `requireUser()`
@@ -7,11 +7,17 @@
  *
  * Mirrors `src/mocks/client.ts:196-252`, with one deliberate difference: the server
  * really does compare the password, while the mock ignores it. Keep the mock's exact
- * wording for the cases it already has — the UI prints these strings verbatim.
+ * wording for the cases it already has: the UI prints these strings verbatim.
  */
 
 import { eq } from "drizzle-orm";
-import type { LoginBody, RegisterBody, User, WashroomPref } from "../../shared/api";
+import type {
+  LoginBody,
+  RegisterBody,
+  UpdateProfileBody,
+  User,
+  WashroomPref,
+} from "../../shared/api";
 import { db } from "../db";
 import { HttpError, now, publicUser, readBody, requireUser, type UserRow } from "../lib";
 import { users } from "../schema";
@@ -19,7 +25,7 @@ import { users } from "../schema";
 /** Assigned at register, in order, so a fresh demo gets varied avatar chips. */
 const PALETTE = ["#7B8CDE", "#9B78D4", "#5B8FE8", "#E87DB8", "#5EC4A8", "#F5A623"] as const;
 
-/** The three the contract allows — a body is untrusted, so check before storing. */
+/** The three the contract allows, a body is untrusted, so check before storing. */
 const PREFS: readonly WashroomPref[] = ["female", "male", "universal"] as const;
 
 export async function register(req: Request): Promise<User> {
@@ -49,7 +55,7 @@ export async function register(req: Request): Promise<User> {
       username,
       display_name: (body.display_name ?? "").trim() || username,
       email,
-      // Plaintext on purpose — see the auth note in CLAUDE.md and `schema.ts`.
+      // Plaintext on purpose: see the auth note in CLAUDE.md and `schema.ts`.
       password: body.password,
       washroom_pref: body.washroom_pref,
       avatar_color: PALETTE[existing.length % PALETTE.length] ?? PALETTE[0],
@@ -79,4 +85,26 @@ export async function login(req: Request): Promise<User> {
 export function me(req: Request): User {
   const user: UserRow = requireUser(req);
   return publicUser(user);
+}
+
+/**
+ * The only thing a user can change about themselves: their bio.
+ *
+ * A blank becomes null rather than `""`, exactly as the mock does. The profile
+ * screen branches on null to decide between the bio and its placeholder, so
+ * storing whitespace would leave it printing an empty line forever.
+ */
+export async function updateProfile(req: Request): Promise<User> {
+  const user = requireUser(req);
+  const body = await readBody<UpdateProfileBody>(req);
+
+  const bio = body.bio?.trim();
+  const updated = db
+    .update(users)
+    .set({ bio: bio ? bio : null })
+    .where(eq(users.id, user.id))
+    .returning()
+    .get();
+
+  return publicUser(updated);
 }

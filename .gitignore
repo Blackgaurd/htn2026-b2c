@@ -39,7 +39,7 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .DS_Store
 
 # The Figma Make export ships its own CLAUDE.md (it just imports its AGENTS.md).
-# The folder is reference material we build *from*, not a project we build *in* —
+# The folder is reference material we build *from*, not a project we build *in*,
 # and those instructions describe vite/pnpm/Figma deploys, which contradict this
 # repo's. Keep the file on disk, out of the repo, so it never becomes live
 # instructions for anyone working here.

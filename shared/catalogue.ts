@@ -1,11 +1,11 @@
 /**
- * THE CATALOGUE — every washroom in E5 and E7, fixed at build time.
+ * THE CATALOGUE, every washroom in E5 and E7, fixed at build time.
  *
  * This is the app's one hard rule made concrete: users pick from this list, they
  * never add to it. There is no create-bathroom endpoint and no free-text bathroom
  * field anywhere in the UI.
  *
- * The rows themselves live in `catalogue.yaml` so the list is editable as data —
+ * The rows themselves live in `catalogue.yaml` so the list is editable as data,
  * see the header there, and `bun run db:catalogue` to apply an edit. Bun parses
  * `.yaml` imports in the runtime *and* inlines them at bundle time, so there is no
  * build step: `server/seed.ts`, `src/mocks/data.ts` and the browser all read that
@@ -14,11 +14,11 @@
  * This file is what makes that safe. A YAML import arrives as `any`, so nothing
  * would stop `washroom_type: femail` from shipping and quietly breaking the gender
  * gate. `parseCatalogue()` is the trade: the compiler stops checking the rows, and
- * this throws on them instead — loudly, at import, naming the row.
+ * this throws on them instead, loudly, at import, naming the row.
  *
  * Imports nothing but the contract's types. Safe in the browser bundle.
  *
- * ⚠️ The rooms are plausible but NOT surveyed — placeholders in the right shape,
+ * ⚠️ The rooms are plausible but NOT surveyed, placeholders in the right shape,
  * waiting on the real E5/E7 audit. Ids are the only thing worth keeping stable,
  * since reviews point at them.
  */
@@ -32,7 +32,7 @@ const TYPES: readonly WashroomType[] = ["female", "male", "universal"];
 /**
  * Validate the YAML into real `BathroomRow`s, or throw saying which row and why.
  *
- * Exported so `bun run db:catalogue` can report a bad edit the same way — and so
+ * Exported so `bun run db:catalogue` can report a bad edit the same way, and so
  * it's testable without a database.
  */
 export function parseCatalogue(input: unknown): BathroomRow[] {
@@ -42,7 +42,7 @@ export function parseCatalogue(input: unknown): BathroomRow[] {
 
   const seen = new Set<number>();
   return input.map((raw, index) => {
-    // `index` is the position in the file, `id` the row's own number — a bad row
+    // `index` is the position in the file, `id` the row's own number, a bad row
     // may be missing the id entirely, so the message leads with the position.
     const where = `catalogue.yaml row ${index + 1}`;
     if (typeof raw !== "object" || raw === null) {
@@ -55,7 +55,7 @@ export function parseCatalogue(input: unknown): BathroomRow[] {
       throw new Error(`${where}: id must be a positive whole number, got ${JSON.stringify(id)}`);
     }
     if (seen.has(id as number)) {
-      throw new Error(`${where}: id ${id} is already used — ids must be unique and stable`);
+      throw new Error(`${where}: id ${id} is already used. Ids must be unique and stable`);
     }
     seen.add(id as number);
 
@@ -94,9 +94,9 @@ export function floorOrdinal(floor: number): string {
   return ORDINALS[floor] ?? `${floor}th`;
 }
 
-/** "E7 3rd Floor — North Wing, beside the stairwell" — built, never stored. */
+/** "E7 3rd Floor · North Wing, beside the stairwell", built and never stored. */
 export function fullLocation(b: Pick<BathroomRow, "building" | "floor" | "location">): string {
-  return `${b.building} ${floorOrdinal(b.floor)} Floor — ${b.location}`;
+  return `${b.building} ${floorOrdinal(b.floor)} Floor · ${b.location}`;
 }
 
 /** Every floor present in the catalogue, ascending. Drives the floor filter chips. */

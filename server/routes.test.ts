@@ -10,7 +10,7 @@
  * ─── How this runs ───────────────────────────────────────────────────────────
  *
  * The REAL server, in a REAL subprocess, over REAL HTTP, against a THROWAWAY
- * database — never the project's `data.db`. Nothing here imports a handler
+ * database, never the project's `data.db`. Nothing here imports a handler
  * directly, so route wiring, methods, status codes and JSON shapes are all under
  * test rather than assumed. `beforeAll` pushes the schema with `drizzle-kit`, loads
  * `server/seed.ts`, boots `server/index.ts` on a free high port and polls until it
@@ -21,7 +21,7 @@
  *
  * ─── Isolation: re-seed before every test ────────────────────────────────────
  *
- * Several tests write — they submit reviews, follow people, register accounts.
+ * Several tests write: they submit reviews, follow people, register accounts.
  * Rather than ordering the suite so the writes happen last (fragile: one new test
  * in the wrong place and a read starts seeing another test's review), `beforeEach`
  * re-runs `server/seed.ts` against the temp database. It clears every table and
@@ -39,6 +39,7 @@ import { join } from "node:path";
 import {
   BUCKET_BANDS,
   paths,
+  PROFILE_ACTIVITY_LIMIT,
   type Bathroom,
   type BathroomDetail,
   type Bucket,
@@ -52,16 +53,19 @@ import {
   type UserSummary,
 } from "../shared/api";
 import { CATALOGUE } from "../shared/catalogue";
+// The bios are long enough that copying them here would be a second source of
+// truth to keep in step; the ids and emails below stay named, as the note says.
+import { DEMO_USERS } from "../shared/demo";
 
 // ─── The fixtures these assertions lean on ────────────────────────────────────
 // See `shared/demo.ts`. Named rather than inlined so a failure reads as a
 // sentence and a fixture change lands in one place.
 
-/** Alex Chen, `washroom_pref: "female"` — sees female + universal. */
+/** Alex Chen, `washroom_pref: "female"`, sees female + universal. */
 const ALEX = 1;
 /** Jordan Kim, `washroom_pref: "male"`. */
 const JORDAN = 3;
-/** Sam Lee, `washroom_pref: "universal"` — sees universal ONLY. */
+/** Sam Lee, `washroom_pref: "universal"`, sees universal ONLY. */
 const SAM = 5;
 /** Alex Tran, male, and deliberately NOT followed by Alex Chen. */
 const ATRAN = 6;
@@ -73,12 +77,12 @@ const DEMO_PASSWORD = "pupi";
 const MENS_ROOM = 2;
 /** Female, on Alex's want-to-go list, and NOT reviewed by them. */
 const UNREVIEWED_ROOM = 11;
-/** Reviewed by users 1, 2 and 4 — its global score is a mean of three. */
+/** Reviewed by users 1, 2 and 4, its global score is a mean of three. */
 const SHARED_ROOM = 6;
 
 /**
  * A valid set of the optional per-aspect notes; individual tests bend one value
- * to break it. Never folded into the score — see `ReviewDetails`.
+ * to break it. Never folded into the score, see `ReviewDetails`.
  */
 const details: ReviewDetails = {
   cleanliness: 4,
@@ -99,7 +103,7 @@ let server: Bun.Subprocess | null = null;
 
 /**
  * A free port, found by binding it here and letting go immediately. The child can
- * not use port 0 — we'd have to scrape its stdout to learn where it landed.
+ * not use port 0: we'd have to scrape its stdout to learn where it landed.
  */
 function pickPort(): number {
   for (let port = 31917; port < 31967; port++) {
@@ -108,7 +112,7 @@ function pickPort(): number {
       probe.stop(true);
       return port;
     } catch {
-      // in use — try the next one
+      // in use, try the next one
     }
   }
   throw new Error("no free port in 31917–31966 to boot the test server on");
@@ -148,7 +152,7 @@ beforeAll(async () => {
     stderr: "inherit",
   });
 
-  // Poll until it answers anything at all — a 401 from `me` is a live server.
+  // Poll until it answers anything at all: a 401 from `me` is a live server.
   const deadline = Date.now() + 15_000;
   for (;;) {
     if (server.exitCode !== null) {
@@ -159,7 +163,7 @@ beforeAll(async () => {
       return;
     } catch {
       if (Date.now() > deadline) {
-        throw new Error(`server never answered on ${base} — see its output above`);
+        throw new Error(`server never answered on ${base}, see its output above`);
       }
       await Bun.sleep(100);
     }
@@ -175,7 +179,7 @@ afterAll(async () => {
 });
 
 /**
- * One request. `user` becomes the `x-pupi-user` header — the entire auth story —
+ * One request. `user` becomes the `x-pupi-user` header (the entire auth story)
  * and a body implies JSON. Returns the status alongside the parsed payload so a
  * test can assert on both, which is the point of going over HTTP at all.
  */
@@ -209,7 +213,7 @@ const post = (path: string, user: number, payload: unknown) =>
  *
  * `Bun.serve` answers a method its route doesn't declare with 405, but Bun's own
  * `fetch` intermittently stalls reading that response on a reused keep-alive
- * connection — a client quirk, not a server one (curl gets its 405 instantly).
+ * connection, a client quirk, not a server one (curl gets its 405 instantly).
  * So the two "this route does not exist" probes carry their own timeout, and a
  * stall reports as 0, which is still not a 2xx. That is exactly what the rule
  * asserts: no route, nothing created.
@@ -230,8 +234,8 @@ const errorOf = (body: unknown): string =>
 /**
  * Stars that land a review in a given band.
  *
- * The band is **derived** from the stars by `bucketForRating()` and is never sent
- * — so the tests still say "loved" where that's the point being made, and this
+ * The band is **derived** from the stars by `bucketForRating()` and is never
+ * sent, so the tests still say "loved" where that's the point being made, and this
  * table is the one place that knows which star rating gets them there.
  */
 const STARS_FOR: Record<Bucket, Rating> = { loved: 5, fine: 3, never: 1 };
@@ -270,6 +274,72 @@ test("the harness boots the real server against a throwaway database", async () 
   expect(body.washroom_pref).toBe("female");
   // The one column that must never reach the wire.
   expect(body).not.toHaveProperty("password");
+});
+
+// ─── Profile bios ─────────────────────────────────────────────────────────────
+
+test("a seeded bio reaches the wire, on the user and on a UserSummary", async () => {
+  const me = await api<User>(paths.me, { user: ALEX });
+  expect(me.status).toBe(200);
+  expect(me.body.bio).toBe(DEMO_USERS.find(u => u.id === ALEX)!.bio);
+
+  // `summarize()` builds UserSummary column by column, so it can carry the bio
+  // on `me` and still drop it everywhere a person is shown as somebody else.
+  const theirs = await api<Profile>(paths.profile(JORDAN), { user: ALEX });
+  expect(theirs.status).toBe(200);
+  expect(theirs.body.user.bio).toBe(DEMO_USERS.find(u => u.id === JORDAN)!.bio);
+});
+
+test("PATCH /api/me sets a bio and trims it", async () => {
+  const written = await api<User>(paths.profileEdit, {
+    method: "PATCH",
+    user: ALEX,
+    body: JSON.stringify({ bio: "  Walks three floors for a good one.  " }),
+  });
+
+  expect(written.status).toBe(200);
+  expect(written.body.bio).toBe("Walks three floors for a good one.");
+  expect(written.body).not.toHaveProperty("password");
+
+  // It stuck, rather than only being echoed back.
+  const reread = await api<User>(paths.me, { user: ALEX });
+  expect(reread.body.bio).toBe("Walks three floors for a good one.");
+});
+
+test("a blank bio clears it to null, never an empty string", async () => {
+  // The profile screen branches on null to choose between the bio and its
+  // placeholder, so `""` would leave it printing an empty line forever. The mock
+  // stores null here and the server has to agree.
+  for (const blank of ["", "   ", "\n\t "]) {
+    const cleared = await api<User>(paths.profileEdit, {
+      method: "PATCH",
+      user: ALEX,
+      body: JSON.stringify({ bio: blank }),
+    });
+
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.bio).toBeNull();
+  }
+});
+
+test("editing a bio needs a signed-in user, and touches nobody else's", async () => {
+  const anonymous = await api(paths.profileEdit, {
+    method: "PATCH",
+    body: JSON.stringify({ bio: "should not land" }),
+  });
+  expect(anonymous.status).toBe(401);
+
+  const jordan = await api<User>(paths.me, { user: JORDAN });
+  expect(jordan.body.bio).toBe(DEMO_USERS.find(u => u.id === JORDAN)!.bio);
+
+  // One user's edit is their own.
+  await api(paths.profileEdit, {
+    method: "PATCH",
+    user: ALEX,
+    body: JSON.stringify({ bio: "mine alone" }),
+  });
+  const jordanAgain = await api<User>(paths.me, { user: JORDAN });
+  expect(jordanAgain.body.bio).toBe(DEMO_USERS.find(u => u.id === JORDAN)!.bio);
 });
 
 // ─── 1–3 · The gate ───────────────────────────────────────────────────────────
@@ -436,6 +506,43 @@ test("following is instant, one-directional, and changes the feed", async () => 
   expect(meAfter.body.followers_count).toBe(meBefore.body.followers_count);
 });
 
+test("profile activity is newest first, and agrees with the rankings on rank", async () => {
+  const { status, body: profile } = await api<Profile>(paths.profile(), { user: ALEX });
+  const { body: ranked } = await api<RankedBathroom[]>(paths.rankings, { user: ALEX });
+
+  expect(status).toBe(200);
+  expect(profile.recent.length).toBeGreaterThan(1);
+  expect(profile.recent.length).toBeLessThanOrEqual(PROFILE_ACTIVITY_LIMIT);
+
+  // Newest first, which is a different order from best first: the fixtures rate
+  // the #1 washroom early on, so an activity list sorted by rank would be a
+  // second copy of the rankings screen rather than a history.
+  const stamps = profile.recent.map(entry => entry.review.created_at);
+  expect([...stamps].sort().reverse()).toEqual(stamps);
+  expect(profile.recent.map(entry => entry.rank)).not.toEqual(ranked.map(entry => entry.rank));
+
+  // Same reviews underneath, so the two screens can never disagree about where a
+  // washroom sits or what it scored.
+  for (const entry of profile.recent) {
+    const row = ranked.find(r => r.bathroom.id === entry.bathroom.id);
+    expect(row).toBeDefined();
+    expect(entry.rank).toBe(row!.rank);
+    expect(entry.review.score).toBe(row!.score);
+  }
+});
+
+test("another user's activity crosses washroom types, the same as the feed", async () => {
+  // Alex Chen uses female + universal; Jordan Kim reviews men's rooms. Seeing
+  // them on his profile is the documented exception, and the badge is what makes
+  // it legible.
+  const { status, body: theirs } = await api<Profile>(paths.profile(JORDAN), { user: ALEX });
+
+  expect(status).toBe(200);
+  expect(theirs.recent.length).toBeGreaterThan(0);
+  expect(theirs.recent.some(entry => entry.bathroom.washroom_type === "male")).toBe(true);
+  expect(theirs.recent.every(entry => entry.bathroom.washroom_type !== undefined)).toBe(true);
+});
+
 test("following yourself is refused", async () => {
   const { status, body } = await api(paths.follow(ALEX), { method: "PUT", user: ALEX });
 
@@ -457,7 +564,7 @@ test("the global score is the mean of everyone's personal score, not yours", asy
   expect(detail.my_review).not.toBeNull();
   expect(detail.friend_reviews.length).toBeGreaterThan(0);
 
-  // Two numbers, never conflated — if they print the same the distinction the
+  // Two numbers, never conflated: if they print the same the distinction the
   // whole app is built on disappears from the demo.
   expect(detail.global_score).not.toBe(detail.my_review!.score);
 });
@@ -535,7 +642,7 @@ test("an unauthenticated or unknown user gets 401, never data", async () => {
   expect(errorOf(anonymous.body)).not.toBe("");
 
   // A stale id from a reseeded database is the realistic case, and it must 401
-  // rather than 404 — `src/api.ts` turns a 401 into a clean sign-out.
+  // rather than 404, `src/api.ts` turns a 401 into a clean sign-out.
   const ghost = await api(paths.rankings, { user: 9999 });
   expect(ghost.status).toBe(401);
 
@@ -545,7 +652,7 @@ test("an unauthenticated or unknown user gets 401, never data", async () => {
 
 // ─── 15–16 · The catalogue, and the two saved lists ───────────────────────────
 
-test("the catalogue is fixed — no route creates a washroom", async () => {
+test("the catalogue is fixed, no route creates a washroom", async () => {
   /** Every washroom id the API will serve, across both halves of the gate. */
   const servedIds = async (): Promise<number[]> => {
     const mine = await api<Bathroom[]>(paths.bathrooms, { user: ALEX });
@@ -555,14 +662,14 @@ test("the catalogue is fixed — no route creates a washroom", async () => {
 
   const before = await servedIds();
 
-  // Neither of these may answer 2xx — there is no handler behind them, and
+  // Neither of these may answer 2xx: there is no handler behind them, and
   // there is no create-bathroom operation in the contract to write one.
   expect(await attempt(paths.bathrooms, { method: "POST", user: ALEX })).not.toBeWithin(200, 300);
   expect(await attempt(paths.bathroom(99), { method: "PUT", user: ALEX })).not.toBeWithin(200, 300);
 
   // Nothing appeared, nothing vanished, and every id still comes from
   // `shared/catalogue.yaml`. A female user and a male user between them see the
-  // whole catalogue exactly once — female + male + universal, no leftovers.
+  // whole catalogue exactly once, female + male + universal, no leftovers.
   const after = await servedIds();
   expect(after).toEqual(before);
   expect(after.every(id => CATALOGUE.some(row => row.id === id))).toBe(true);

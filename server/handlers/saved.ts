@@ -1,5 +1,5 @@
 /**
- * The two saved lists — and they are different things, so keep them apart:
+ * The two saved lists, and they are different things, so keep them apart:
  *
  * - a **bookmark** is "saved". It lives on the profile.
  * - **want-to-go** is "I intend to review this". It lives on My list, and drops
@@ -88,7 +88,7 @@ export function deleteBookmark(req: IdReq): { bathroom_id: number; bookmarked: b
 
 /**
  * Want-to-go means "I intend to review this", so a washroom the user has already
- * reviewed drops off the list — the intent is spent. Bookmarks do not do this.
+ * reviewed drops off the list, the intent is spent. Bookmarks do not do this.
  */
 export function listWantToGo(req: Request): Bathroom[] {
   const user = requireUser(req);

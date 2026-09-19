@@ -1,21 +1,21 @@
 /**
  * Load the demo into the local database: `bun run db:seed`.
  *
- * Real data in real SQLite — just pre-made, so a fresh clone has something on
+ * Real data in real SQLite, just pre-made, so a fresh clone has something on
  * screen and the demo doesn't open to an empty list. Safe to re-run; it clears
  * every table first and reinserts with the **same ids the mocks use**, which is
  * what makes `?mock=0` evidence the backend works rather than just a
  * different-looking app: same people, same feed, same global scores.
  *
  * Wipes everything, including any account you registered while testing. To apply
- * a catalogue edit without losing that, use `bun run db:catalogue` instead — it
+ * a catalogue edit without losing that, use `bun run db:catalogue` instead, it
  * upserts washrooms and leaves users and reviews alone.
  *
  * Every row comes from `shared/`, never from here: `shared/catalogue.yaml` via
  * `CATALOGUE`, and the people, reviews, follows, bookmarks and want-to-go from
  * `shared/demo.ts`. `src/mocks/data.ts` reads those same constants.
  *
- * Requires the tables to exist — run `bun run db:push` first.
+ * Requires the tables to exist: run `bun run db:push` first.
  */
 
 import { count, sql } from "drizzle-orm";

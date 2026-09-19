@@ -2,7 +2,7 @@
  * Push `shared/catalogue.yaml` into the `bathrooms` table: `bun run db:catalogue`.
  *
  * This is the *only* way a washroom gets into the database. Users never create
- * them — there is no create-bathroom endpoint, and no handler inserts here. To
+ * them, there is no create-bathroom endpoint, and no handler inserts here. To
  * add, correct or retire a room you edit the YAML and run this.
  *
  * Upserts by id rather than wiping, so applying an edit doesn't cost you the
@@ -11,10 +11,10 @@
  * different washroom.
  *
  * Rows in the database whose id is no longer in the YAML are reported, never
- * deleted — a review points at them and a cascade would erase a ranking. Retiring
+ * deleted, a review points at them and a cascade would erase a ranking. Retiring
  * a washroom for real stays a deliberate, manual decision.
  *
- * Requires the tables to exist — run `bun run db:push` first.
+ * Requires the tables to exist, run `bun run db:push` first.
  */
 
 import { CATALOGUE } from "../shared/catalogue";
@@ -65,6 +65,6 @@ console.log(
 if (retired.length > 0) {
   console.log(
     `⚠️  ${retired.length} row(s) in the database are no longer in the catalogue: ${retired.join(", ")}.\n` +
-      `   Left in place — reviews may point at them. Delete by hand if you really mean to.`,
+      `   Left in place: reviews may point at them. Delete by hand if you really mean to.`,
   );
 }

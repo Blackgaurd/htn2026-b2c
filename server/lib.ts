@@ -7,12 +7,12 @@
  *
  *   1. Score is computed from `position` on read, via `scoreForPosition()` from
  *      the contract. There is no score column and nothing caches one.
- *   2. `visibleTypes(pref)` gates every read and write — except `GET /api/feed`
+ *   2. `visibleTypes(pref)` gates every read and write, except `GET /api/feed`
  *      and `Profile.top`, which cross types deliberately and flag what you can't
  *      use. Rejecting is the server's job, not the screen's.
  *
  * The behaviour mirrors `src/mocks/client.ts` closely enough that the two clients
- * are indistinguishable to a component, error strings included — that's the whole
+ * are indistinguishable to a component, error strings included. That's the whole
  * point of `?mock=0` being evidence rather than just a different-looking app.
  *
  * Queries stay synchronous (`.all()` / `.get()` / `.run()`), so handlers are
@@ -56,7 +56,7 @@ export class HttpError extends Error {
  * Turn a data-returning function into a Bun route handler.
  *
  * Handlers return the payload and throw on failure, which keeps them reading like
- * the mock client. Every failure lands as `{ error }` — the shape `src/api.ts`
+ * the mock client. Every failure lands as `{ error }`, the shape `src/api.ts`
  * relies on to surface a message to the UI.
  *
  * The two kinds of failure are not the same thing and must not be served the
@@ -65,7 +65,7 @@ export class HttpError extends Error {
  * - An `HttpError` is a **refusal**: the request was understood and declined, and
  *   its message was written to be read by a person ("that washroom isn't one you
  *   use"). It goes out verbatim at its own status.
- * - Anything else is a **breakage** — a bug, or SQLite having a bad day. Its
+ * - Anything else is a **breakage**: a bug, or SQLite having a bad day. Its
  *   message was written for us, not for the user. Shipping one to the browser
  *   put `disk I/O error` in the login form's validation box, where it reads as
  *   "you typed something wrong"; and sending it as a 400 blamed the client for a
@@ -80,13 +80,13 @@ export function route<P extends string>(fn: (req: BunRequest<P>) => unknown) {
       if (err instanceof HttpError) {
         return Response.json({ error: err.message }, { status: err.status });
       }
-      console.error(`${req.method} ${new URL(req.url).pathname} —`, err);
+      console.error(`${req.method} ${new URL(req.url).pathname}:`, err);
       return Response.json({ error: "something went wrong on our end" }, { status: 500 });
     }
   };
 }
 
-/** Parse a `:id` path segment, or 404 — a non-numeric id is a missing row. */
+/** Parse a `:id` path segment, or 404, a non-numeric id is a missing row. */
 export function numericParam(raw: string | undefined, what: string): number {
   const id = Number(raw);
   if (!Number.isInteger(id)) throw new HttpError(404, `no ${what} ${raw}`);
@@ -134,7 +134,7 @@ export function bathroomRow(id: number): BathroomRow {
   return row;
 }
 
-/** SQLite's `datetime('now')` format — UTC, "YYYY-MM-DD HH:MM:SS". */
+/** SQLite's `datetime('now')` format, UTC, "YYYY-MM-DD HH:MM:SS". */
 export const now = (): string => new Date().toISOString().slice(0, 19).replace("T", " ");
 
 // ─── The gate ─────────────────────────────────────────────────────────────────
@@ -161,7 +161,7 @@ export type ScoredReview = { review: ReviewRow; score: number; rank: number };
  * One user's reviews, scored and ranked.
  *
  * The score comes from each review's **index within its bucket**, not from the
- * stored `position` — so a gap or a duplicate left behind by an earlier write
+ * stored `position`, so a gap or a duplicate left behind by an earlier write
  * heals itself instead of producing a score outside the band. `position` only has
  * to describe the order; the order is the data.
  *
@@ -201,7 +201,7 @@ export const withScore = (review: ReviewRow, score: number): Review => ({ ...rev
 export type Aggregate = { global_score: number; review_count: number };
 
 /**
- * The global score: the mean of every user's *personal* score for a bathroom —
+ * The global score: the mean of every user's *personal* score for a bathroom,
  * never the mean of their star ratings, and never filtered by the viewer's gate.
  *
  * Computed in JS rather than SQL because a rank-derived score can't be averaged
@@ -284,6 +284,7 @@ export function summarize(target: UserRow, viewerId: number): UserSummary {
     id: target.id,
     username: target.username,
     display_name: target.display_name,
+    bio: target.bio,
     avatar_color: target.avatar_color,
     washroom_pref: target.washroom_pref,
     following: edge !== undefined,

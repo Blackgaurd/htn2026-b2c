@@ -1,4 +1,4 @@
-# THE CATALOGUE — every washroom in E5 and E7.
+# THE CATALOGUE, every washroom in E5 and E7.
 #
 # Users pick from this list; they never add to it. There is no create-bathroom
 # endpoint and no free-text bathroom field anywhere in the UI. This file is the
@@ -6,20 +6,20 @@
 #
 # Edit here, then apply it:
 #
-#   bun run db:catalogue     # upserts by id — leaves users and reviews alone
+#   bun run db:catalogue     # upserts by id, leaves users and reviews alone
 #
 # ids are the part worth keeping stable: reviews point at them. Never renumber an
 # existing row, and never reuse the id of a room you removed.
 #
 # `location` is the detail only ("Main Entrance, left of the elevator"). The
-# building and floor prefix is composed for display by `fullLocation()` — storing
+# building and floor prefix is composed for display by `fullLocation()`, storing
 # it twice is how you end up with a regex stripping it back off. Keep the strings
 # quoted: an unquoted plain scalar breaks on a ": " or a leading "[".
 #
 # washroom_type: female | male | universal. There is deliberately no "accessible"
-# type — `accessible` below is a property of the room, not a room of its own.
+# type, `accessible` below is a property of the room, not a room of its own.
 #
-# ⚠️ The rooms are plausible but NOT surveyed — placeholders in the right shape,
+# ⚠️ The rooms are plausible but NOT surveyed, placeholders in the right shape,
 # waiting on the real E5/E7 audit.
 
 # ─── E5 ──────────────────────────────────────────────────────────────────────

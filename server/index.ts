@@ -2,11 +2,11 @@
  * Server entry: static frontend + API, one process, one port.
  *
  * Deliberately thin. Endpoint logic lives in `routes.ts`, the schema lives in
- * `db.ts`, and the URLs come from the shared contract — so this file should
+ * `db.ts`, and the URLs come from the shared contract, so this file should
  * barely change all weekend.
  *
  * Every path comes from `routePatterns` in `shared/api.ts`, so the client and the
- * server cannot disagree about a URL — `src/api.ts` builds the same strings from
+ * server cannot disagree about a URL: `src/api.ts` builds the same strings from
  * the `paths` builders right beside them.
  *
  * The frontend still runs on `src/mocks/` by default; `?mock=0` is what reaches
@@ -26,7 +26,7 @@ const server = serve({
   routes: {
     [routePatterns.register]: { POST: handlers.register },
     [routePatterns.login]: { POST: handlers.login },
-    [routePatterns.me]: { GET: handlers.me },
+    [routePatterns.me]: { GET: handlers.me, PATCH: handlers.updateProfile },
 
     [routePatterns.bathrooms]: { GET: handlers.listBathrooms },
     [routePatterns.bathroom]: { GET: handlers.getBathroom },

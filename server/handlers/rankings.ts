@@ -47,8 +47,8 @@ import { store } from "../photos";
 import { reviews } from "../schema";
 
 /**
- * The six detail columns, in table order. Every one is written on every insert —
- * as a `Rating` when answered and applicable, `null` otherwise — so a re-rate
+ * The six detail columns, in table order. Every one is written on every insert
+ * (as a `Rating` when answered and applicable, `null` otherwise) so a re-rate
  * can never leave a stale value behind from the review it replaced.
  */
 const DETAIL_COLUMNS: readonly ReviewDetailKey[] = [
@@ -63,7 +63,7 @@ const DETAIL_COLUMNS: readonly ReviewDetailKey[] = [
 /**
  * Everything this user has reviewed, best first.
  *
- * Deliberately *not* gender-filtered: you reviewed it, so you see it — a
+ * Deliberately *not* gender-filtered: you reviewed it, so you see it. A
  * preference changed after the fact must not silently delete your own history.
  * `rankingsFor()` does the work; score falls out of each review's index within
  * its bucket, so this endpoint reads nothing it doesn't recompute.
@@ -91,7 +91,7 @@ export async function submitReview(req: Request): Promise<SubmitReviewResult> {
   //    throws, so a screen can't tell which client rejected it.
   const rating = validRating(body.rating);
 
-  //    The band is DERIVED, never sent — so the stars and the bucket cannot
+  //    The band is DERIVED, never sent, so the stars and the bucket cannot
   //    disagree about the same review.
   const bucket = bucketForRating(rating);
 
@@ -100,7 +100,7 @@ export async function submitReview(req: Request): Promise<SubmitReviewResult> {
   //    room is a rating of something that was never there.
   const details = validDetails(body.details, room.washroom_type);
 
-  // 3. Read the old score BEFORE deleting — after the delete it is always null.
+  // 3. Read the old score BEFORE deleting: after the delete it is always null.
   const before = scoredReviews(user.id).find(r => r.review.bathroom_id === room.id);
   const previous_score = before?.score ?? null;
 
@@ -110,7 +110,7 @@ export async function submitReview(req: Request): Promise<SubmitReviewResult> {
     .where(and(eq(reviews.user_id, user.id), eq(reviews.bathroom_id, room.id)))
     .run();
 
-  // 5. Insert. `position` here is a placeholder — step 6 is what decides it.
+  // 5. Insert. `position` here is a placeholder; step 6 is what decides it.
   const created = db
     .insert(reviews)
     .values({
@@ -128,7 +128,7 @@ export async function submitReview(req: Request): Promise<SubmitReviewResult> {
     .get();
 
   // 6. Splice it in at the duel's answer, then renumber the bucket so positions
-  //    stay a contiguous 0..n-1 — the order is the data, the numbers just record
+  //    stay a contiguous 0..n-1: the order is the data, the numbers just record
   //    it. An out-of-range position is pinned to an end, never rejected: the
   //    duel is the only thing that produces one and a stale list shouldn't fail
   //    the write. Only the target bucket moves; a gap left in the old one heals
@@ -185,7 +185,7 @@ function validRating(rating: unknown): Rating {
 /**
  * The optional per-aspect notes, as the six nullable columns.
  *
- * Every key is optional — a half-filled set is fine, and an unanswered aspect is
+ * Every key is optional, a half-filled set is fine, and an unanswered aspect is
  * `null`, not a zero. A key that doesn't apply to this washroom is dropped rather
  * than stored: `detailKeysFor()` says `products` is women's washrooms only, so
  * rating it anywhere else would be recording an opinion of something that was
@@ -216,7 +216,7 @@ function validDetails(
  * Photos in, reference URLs out.
  *
  * The bytes go to the in-process store in `server/photos.ts`; the row keeps a
- * short `/api/photos/<id>`. Extras past the cap are dropped rather than refused —
+ * short `/api/photos/<id>`. Extras past the cap are dropped rather than refused:
  * the client already enforces `MAX_REVIEW_PHOTOS`, so an over-long list is a
  * stale screen, not something worth failing a review over.
  */

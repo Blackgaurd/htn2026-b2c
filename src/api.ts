@@ -1,14 +1,14 @@
 /**
- * The only frontend file that knows HTTP exists — and the switch between the real
+ * The only frontend file that knows HTTP exists, and the switch between the real
  * backend and the fixtures.
  *
  * Components import these functions and get typed domain objects back. They cannot
  * see URLs, fetch, status codes, SQL, or whether the data came from `data.db` or
- * `src/mocks/` — so the backend can reshape any of that, or not exist yet, without
+ * `src/mocks/`, so the backend can reshape any of that, or not exist yet, without
  * touching a component.
  *
  * Both clients implement `ApiClient` from the contract, so they cannot drift apart.
- * Which one is live comes from the URL — see `src/mocks/enabled.ts`.
+ * Which one is live comes from the URL, see `src/mocks/enabled.ts`.
  *
  * There's no token: the signed-in user is an id in `localStorage` (see
  * `src/session.ts`) sent as `x-pupi-user`. That's the whole auth story, on purpose.
@@ -26,6 +26,7 @@ import type {
   RegisterBody,
   SubmitReviewBody,
   SubmitReviewResult,
+  UpdateProfileBody,
   User,
   UserSummary,
 } from "../shared/api";
@@ -81,6 +82,9 @@ const httpClient: ApiClient = {
     }
   },
 
+  updateProfile: body =>
+    request<User>(paths.profileEdit, send("PATCH", body satisfies UpdateProfileBody)),
+
   async logout() {
     writeUserId(null);
   },
@@ -117,6 +121,7 @@ export const {
   register,
   login,
   currentUser,
+  updateProfile,
   logout,
   listBathrooms,
   getBathroom,

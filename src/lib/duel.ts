@@ -1,12 +1,12 @@
 /**
- * The comparison duel — the thing that actually produces a score.
+ * The comparison duel, the thing that actually produces a score.
  *
  * A fresh review arrives with a bucket but no place inside it. Rather than asking
  * the user to rank against everything, we binary-search: ask about the middle of
  * the remaining range, and each answer halves it. Seven previous reviews in a
  * bucket costs three taps, not seven.
  *
- * Pure, synchronous and state-free by design — the screen holds a `Duel` in
+ * Pure, synchronous and state-free by design, the screen holds a `Duel` in
  * `useState` and the API never hears about the intermediate steps. All the server
  * ever receives is the final `duelPosition()`.
  */
@@ -24,7 +24,7 @@ export type ReviewDraft = {
   details: ReviewDetails;
   photos: string[];
   note: string | null;
-  /** Always `bucketForRating(rating)` — carried so the duel needn't recompute it. */
+  /** Always `bucketForRating(rating)`, carried so the duel needn't recompute it. */
   bucket: Bucket;
 };
 
@@ -63,7 +63,7 @@ export const duelPosition = (duel: Duel): number => duel.lo;
 
 /**
  * Worst-case questions left, so the progress dots can be drawn up front. The
- * window halves each round, so it's the log of the range — never more than one
+ * window halves each round, so it's the log of the range, never more than one
  * extra dot appears.
  */
 export function duelRoundsLeft(duel: Duel): number {

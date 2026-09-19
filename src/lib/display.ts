@@ -1,8 +1,8 @@
 /**
- * Presentation helpers for the püpi design — colours, labels and badges.
+ * Presentation helpers for the püpi design, colours, labels and badges.
  *
  * Pure functions over contract types. Nothing here fetches, and nothing here
- * decides what a user is allowed to see — that's `visibleTypes` in the contract.
+ * decides what a user is allowed to see, that's `visibleTypes` in the contract.
  *
  * The hex values are the Figma palette. They're repeated as literals rather than
  * Tailwind classes because the design leans on them for gradients, alpha suffixes
@@ -38,7 +38,7 @@ export const gradient = {
 
 /**
  * How each washroom type is named and coloured. Every surface that shows a
- * bathroom shows this badge — it is the whole reason the friends feed is safe to
+ * bathroom shows this badge, it is the whole reason the friends feed is safe to
  * show across types.
  */
 export const washroomMeta: Record<
@@ -58,7 +58,7 @@ export const prefBlurb: Record<WashroomType, string> = {
 };
 
 /**
- * Green, yellow, red. Three tiers and no more — a score is the one number in the
+ * Green, yellow, red. Three tiers and no more, a score is the one number in the
  * app, so it gets one colour scale and nothing else competes with it.
  */
 export const scoreScale = {
@@ -97,7 +97,7 @@ export const detailMeta: Record<string, { label: string; hint: string }> = {
 /** What each star means while you're picking one. */
 export const STAR_LABELS = ["", "Awful", "Bad", "Fine", "Great", "Perfect"] as const;
 
-/** "E7 3rd Floor — North Wing, beside the stairwell" */
+/** "E7 3rd Floor · North Wing, beside the stairwell" */
 export const locationOf = (bathroom: Bathroom): string => fullLocation(bathroom);
 
 /** Initials for an avatar chip: "Maya Rahman" → "MR". */

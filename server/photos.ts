@@ -2,8 +2,8 @@
  * An in-process object store for review photos.
  *
  * The contract types `photos` as `string[]` and the screens put each string
- * straight into an `<img src>`. The frontend sends **data URLs** — the whole
- * image base64'd inline — and that is the wrong thing to put in SQLite: a couple
+ * straight into an `<img src>`. The frontend sends **data URLs**, the whole
+ * image base64'd inline, and that is the wrong thing to put in SQLite: a couple
  * of phone photos is several megabytes of base64 in a TEXT column, read back in
  * full by every list query that touches the row, including the feed.
  *
@@ -11,13 +11,13 @@
  * in this process, and hands back a short reference URL (`/api/photos/<id>`).
  * That reference is what the review row holds, and `GET /api/photos/:id` serves
  * the bytes back. An `<img src>` can't tell the difference, so no screen changes
- * and `shared/api.ts` is untouched — the frontend never constructs this URL, it
+ * and `shared/api.ts` is untouched: the frontend never constructs this URL, it
  * only echoes back what the API handed it.
  *
  * ⚠️ **In-process means exactly that: the photos die with the server.** The rows
  * in `data.db` outlive them, so after a restart a review still lists its photo
  * URLs and every one of them 404s. That's the deal a Map buys you, and for a
- * hackathon it's the right trade — no upload dir, no blob column, no cleanup job.
+ * hackathon it's the right trade: no upload dir, no blob column, no cleanup job.
  * Making photos survive a restart means writing the bytes somewhere real, at
  * which point `store()` is the one function that changes.
  *
@@ -26,7 +26,7 @@
 
 const BY_ID = new Map<string, { bytes: Uint8Array; type: string }>();
 
-/** `data:image/jpeg;base64,/9j/4AAQ…` — mediatype optional, base64 required. */
+/** `data:image/jpeg;base64,/9j/4AAQ…`, mediatype optional, base64 required. */
 const DATA_URL = /^data:([\w.+-]+\/[\w.+-]+)?(?:;[\w-]+=[\w-]+)*;base64,([A-Za-z0-9+/=\s]+)$/;
 
 /** Where a stored photo is served from. Local to the server, not the contract. */
@@ -49,7 +49,7 @@ const ALLOWED = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "
  * Take one photo string and return what belongs in the database.
  *
  * A data URL is decoded and stored, and its reference URL comes back. Anything
- * else is passed through untouched — on a re-rate the client sends back the
+ * else is passed through untouched, on a re-rate the client sends back the
  * `/api/photos/…` URLs it was given, and those must not be re-stored.
  *
  * Throws on a malformed or oversized data URL so a bad upload is a 400 the user
@@ -92,7 +92,7 @@ export function store(photo: string): string {
   return photoUrl(id);
 }
 
-/** Serve one stored photo. 404 once the process has restarted — see the note above. */
+/** Serve one stored photo. 404 once the process has restarted, see the note above. */
 export function serve(req: Request & { params: { id: string } }): Response {
   const found = BY_ID.get(req.params.id);
   if (!found) {

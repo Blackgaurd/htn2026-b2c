@@ -1,13 +1,13 @@
 /**
  * Step 2 of rating: the verdict, then anything else you care to record.
  *
- * The star row at the top is the only input that touches the score — it picks the
- * band, and the duel picks the place inside it. Everything below is optional and
- * deliberately inert: cleanliness, smell and the rest are notes about the room, not
- * a second scoring system. They're collapsed by default so the screen asks one
- * question first.
+ * The star row at the top is the only input that touches the score, it picks the
+ * band, and the duel picks the place inside it. Everything below it is deliberately
+ * inert: cleanliness, smell and the rest are notes about the room, not a second
+ * scoring system, which is what the line under the heading says out loud.
  *
- * Sanitary products are asked about in women's washrooms only; see `detailKeysFor`.
+ * They're shown expanded rather than behind a disclosure, a control you have to
+ * discover gets used by nobody, and there are four of them; see `detailKeysFor`.
  */
 
 import { useRef, useState } from "react";
@@ -34,13 +34,11 @@ export function RateScoreScreen({
   const [details, setDetails] = useState<ReviewDetails>({});
   const [photos, setPhotos] = useState<string[]>([]);
   const [note, setNote] = useState("");
-  const [showDetails, setShowDetails] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const shown = hovered ?? rating ?? 0;
   const keys = detailKeysFor(bathroom.washroom_type);
-  const answered = keys.filter(key => details[key] !== undefined).length;
 
   function addPhotos(files: FileList | null) {
     setPhotoError(null);
@@ -68,14 +66,8 @@ export function RateScoreScreen({
   return (
     <div className="flex h-full flex-col" style={{ background: palette.bg }}>
       <div className="px-5 pb-5 pt-14" style={{ background: gradient.wash, borderRadius: "0 0 24px 24px" }}>
-        <div className="mb-4 flex items-center gap-3">
+        <div className="mb-4">
           <BackButton onClick={onBack} />
-          <p
-            className="flex-1 text-right"
-            style={{ fontSize: 11, fontWeight: 700, color: palette.muted, letterSpacing: "0.08em" }}
-          >
-            STEP 2 OF 2
-          </p>
         </div>
 
         <div className="rounded-2xl px-4 py-3" style={{ background: "white" }}>
@@ -123,55 +115,43 @@ export function RateScoreScreen({
           )}
         </div>
 
-        {/* Optional and clearly marked as not counting. */}
-        <div className="mt-3 rounded-2xl" style={{ background: "white" }}>
-          <button
-            onClick={() => setShowDetails(open => !open)}
-            className="flex w-full items-center justify-between p-4 text-left"
-          >
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: palette.charcoal }}>Rate the details</div>
-              <div style={{ fontSize: 11, color: palette.muted }}>
-                Optional — these don't affect the score
-              </div>
-            </div>
-            <span style={{ fontSize: 12, fontWeight: 700, color: palette.periwinkle }}>
-              {answered > 0 ? `${answered}/${keys.length}` : showDetails ? "Hide" : "Add"}
-            </span>
-          </button>
+        <div className="mt-3 rounded-2xl p-4" style={{ background: "white" }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: palette.charcoal }}>Rate the details</div>
+          <div style={{ fontSize: 11, color: palette.muted }}>These don't affect the score</div>
 
-          {showDetails && (
-            <div className="px-4 pb-4">
-              {keys.map(key => {
-                const meta = detailMeta[key];
-                const value = details[key] ?? 0;
-                return (
-                  <div key={key} className="flex items-center justify-between py-2.5" style={{ borderTop: `1px solid ${palette.border}` }}>
-                    <div className="min-w-0 pr-3">
-                      <div style={{ fontSize: 13, fontWeight: 600, color: palette.charcoal }}>{meta?.label ?? key}</div>
-                      <div style={{ fontSize: 11, color: palette.faint }}>{meta?.hint}</div>
-                    </div>
-                    <div className="flex flex-shrink-0 gap-1">
-                      {STARS.map(star => (
-                        <button
-                          key={star}
-                          onClick={() => setDetails(current => ({ ...current, [key]: star }))}
-                          className="active:scale-90"
-                        >
-                          <StarIcon filled={value >= star} size={17} />
-                        </button>
-                      ))}
-                    </div>
+          <div className="mt-1">
+            {keys.map(key => {
+              const meta = detailMeta[key];
+              const value = details[key] ?? 0;
+              return (
+                <div
+                  key={key}
+                  className="flex items-center justify-between py-2.5"
+                  style={{ borderTop: `1px solid ${palette.border}` }}
+                >
+                  <div className="min-w-0 pr-3" style={{ fontSize: 13, fontWeight: 600, color: palette.charcoal }}>
+                    {meta?.label ?? key}
                   </div>
-                );
-              })}
-            </div>
-          )}
+                  <div className="flex flex-shrink-0 gap-1">
+                    {STARS.map(star => (
+                      <button
+                        key={star}
+                        onClick={() => setDetails(current => ({ ...current, [key]: star }))}
+                        className="active:scale-90"
+                      >
+                        <StarIcon filled={value >= star} size={17} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         <div className="mt-3 rounded-2xl p-4" style={{ background: "white" }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: palette.charcoal }}>Photos</div>
-          <div style={{ fontSize: 11, color: palette.muted }}>Optional — up to {MAX_REVIEW_PHOTOS}</div>
+          <div style={{ fontSize: 11, color: palette.muted }}>Up to {MAX_REVIEW_PHOTOS}</div>
 
           <div className="mt-3 flex gap-2">
             {photos.map((src, index) => (
@@ -241,7 +221,7 @@ export function RateScoreScreen({
         <div className="mt-3 rounded-2xl p-4" style={{ background: "white" }}>
           <div className="mb-3">
             <div style={{ fontSize: 14, fontWeight: 700, color: palette.charcoal }}>Leave a note</div>
-            <div style={{ fontSize: 11, color: palette.muted }}>Optional — share what stood out</div>
+            <div style={{ fontSize: 11, color: palette.muted }}>Share what stood out</div>
           </div>
           <textarea
             placeholder="e.g. Always clean, great soap dispensers. The hand dryer is a bit loud."

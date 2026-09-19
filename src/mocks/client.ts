@@ -3,7 +3,7 @@
  *
  * Writes are real: reviewing, ranking, bookmarking and following all mutate an
  * in-memory copy of `data.ts`, so the UI behaves like it's talking to a database.
- * State lives for the life of the page — a reload puts the fixtures back, which is
+ * State lives for the life of the page, a reload puts the fixtures back, which is
  * the fastest possible reset.
  *
  * Two behaviours here are load-bearing rather than convenient, and
@@ -28,6 +28,7 @@ import type {
   FeedEntry,
   FriendReview,
   Profile,
+  ProfileActivity,
   RankedBathroom,
   Review,
   ReviewRow,
@@ -37,6 +38,7 @@ import type {
 import {
   BUCKET_ORDER,
   MAX_REVIEW_PHOTOS,
+  PROFILE_ACTIVITY_LIMIT,
   bucketForRating,
   canUse,
   detailKeysFor,
@@ -47,12 +49,12 @@ import type { DemoUser } from "../../shared/demo";
 import { readUserId, writeUserId } from "../session";
 import { DEFAULT_USER_ID, freshState, type MockState } from "./data";
 
-/** Mutable session copy — the fixtures themselves are never touched. */
+/** Mutable session copy, the fixtures themselves are never touched. */
 let state: MockState = freshState();
 
 /**
  * Mocks open signed in so the whole app is one tap away, but an explicit log out
- * has to stick for the rest of the page view — otherwise the splash and register
+ * has to stick for the rest of the page view, otherwise the splash and register
  * screens are unreachable. A reload starts you signed in again.
  */
 let signedOut = false;
@@ -97,6 +99,7 @@ function summarize(user: DemoUser, viewerId: number): UserSummary {
     id: user.id,
     username: user.username,
     display_name: user.display_name,
+    bio: user.bio,
     avatar_color: user.avatar_color,
     washroom_pref: user.washroom_pref,
     following: state.follows.some(f => f.follower_id === viewerId && f.followee_id === user.id),
@@ -181,6 +184,24 @@ function rankingsFor(userId: number): RankedBathroom[] {
   }));
 }
 
+/**
+ * The same reviews, newest first instead of best first.
+ *
+ * Rank still comes from `scoredReviews`, so an activity row and a rankings row
+ * never disagree about where a washroom sits; only the sort differs.
+ */
+function activityFor(userId: number): ProfileActivity[] {
+  const agg = aggregates();
+  return scoredReviews(userId)
+    .map(({ review, score, rank }) => ({
+      review: { ...copy(review), score },
+      bathroom: toBathroom(bathroomRow(review.bathroom_id), agg),
+      rank,
+    }))
+    .sort((a, b) => b.review.created_at.localeCompare(a.review.created_at) || b.review.id - a.review.id)
+    .slice(0, PROFILE_ACTIVITY_LIMIT);
+}
+
 const byLocation = (a: BathroomRow, b: BathroomRow) =>
   a.building.localeCompare(b.building) || a.floor - b.floor || a.id - b.id;
 
@@ -207,6 +228,7 @@ export const mockClient: ApiClient = {
       username,
       display_name: body.display_name.trim() || username,
       email,
+      bio: null,
       washroom_pref: body.washroom_pref,
       avatar_color: palette[state.users.length % palette.length] ?? "#7B8CDE",
       created_at: now(),
@@ -222,7 +244,7 @@ export const mockClient: ApiClient = {
   async login(body) {
     const email = body.email.trim().toLowerCase();
     const user = state.users.find(u => u.email.toLowerCase() === email);
-    // No password check on purpose — see the auth note in CLAUDE.md.
+    // No password check on purpose, see the auth note in CLAUDE.md.
     if (!user) throw new Error("no account for that email");
 
     signedOut = false;
@@ -244,6 +266,13 @@ export const mockClient: ApiClient = {
       writeUserId(null);
       return null;
     }
+    return publicUser(user);
+  },
+
+  async updateProfile(body) {
+    const user = currentUserRow();
+    const bio = body.bio?.trim();
+    user.bio = bio ? bio : null;
     return publicUser(user);
   },
 
@@ -311,7 +340,7 @@ export const mockClient: ApiClient = {
       throw new Error("rating must be a whole number from 1 to 5");
     }
 
-    // The band follows from the stars — it is never sent separately, so the two
+    // The band follows from the stars, it is never sent separately, so the two
     // can't disagree.
     const bucket = bucketForRating(body.rating);
 
@@ -356,7 +385,7 @@ export const mockClient: ApiClient = {
     state.reviews.push(created);
 
     // Splice it in at the duel's answer, then renumber the bucket so positions
-    // stay a contiguous 0..n-1 — the order is the data, the numbers just record it.
+    // stay a contiguous 0..n-1, the order is the data, the numbers just record it.
     const bucketRows = state.reviews
       .filter(r => r.user_id === user.id && r.bucket === bucket && r.id !== created.id)
       .sort((a, b) => a.position - b.position || a.id - b.id);
@@ -434,7 +463,7 @@ export const mockClient: ApiClient = {
   // ── Social ─────────────────────────────────────────────────────────────────
 
   /**
-   * Reviews from everyone you follow, newest first — of *any* washroom type.
+   * Reviews from everyone you follow, newest first, of *any* washroom type.
    * `can_use` is what the row uses to decide whether its actions are live.
    */
   async listFeed() {
@@ -490,8 +519,8 @@ export const mockClient: ApiClient = {
   },
 
   /**
-   * Someone's profile. Their top three is *not* gender-filtered — same rule as the
-   * feed: you can see what a friend ranked, the badge says which washroom it was.
+   * Someone's profile. Their activity is *not* gender-filtered, same rule as the
+   * feed: you can see what a friend rated, the badge says which washroom it was.
    */
   async getProfile(userId) {
     const viewer = currentUserRow();
@@ -506,7 +535,7 @@ export const mockClient: ApiClient = {
         : null,
       following_count: state.follows.filter(f => f.follower_id === target.id).length,
       followers_count: state.follows.filter(f => f.followee_id === target.id).length,
-      top: ranked.slice(0, 3),
+      recent: activityFor(target.id),
     };
     return profile;
   },

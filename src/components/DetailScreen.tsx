@@ -4,7 +4,7 @@
  * Pared back on purpose. Friends' individual ratings live in the feed, where
  * they're attached to a person and a moment; repeating them here turned a page
  * about a room into a second feed. What's left is the pair of numbers that
- * actually differ — the campus average and your own score — plus whatever you
+ * actually differ, the campus average and your own score, plus whatever you
  * recorded last time.
  */
 
@@ -14,7 +14,7 @@ import { detailKeysFor } from "../../shared/api";
 import { getBathroom, setBookmark } from "../api";
 import { detailMeta, gradient, locationOf, palette, scoreColor, scoreLabel } from "../lib/display";
 import { useAsync } from "../lib/useAsync";
-import { BackButton, LoadingScreen, Notice, PrimaryButton, SaveButton, WashroomBadge } from "./chrome";
+import { BackButton, BookmarkButton, LoadingScreen, Notice, PrimaryButton, WashroomBadge } from "./chrome";
 import { StarIcon } from "./icons";
 
 export function DetailScreen({
@@ -62,7 +62,7 @@ export function DetailScreen({
       <div className="px-5 pb-6 pt-14" style={{ background: gradient.wash, borderRadius: "0 0 28px 28px" }}>
         <div className="mb-4 flex items-center justify-between">
           <BackButton onClick={onBack} />
-          <SaveButton on={bathroom.bookmarked} onToggle={() => toggleSave(!bathroom.bookmarked)} />
+          <BookmarkButton on={bathroom.bookmarked} onToggle={() => toggleSave(!bathroom.bookmarked)} />
         </div>
 
         <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -126,7 +126,7 @@ export function DetailScreen({
           <div className="rounded-2xl p-4" style={{ background: "white" }}>
             <h3 style={{ fontSize: 14, fontWeight: 700, color: palette.charcoal }}>Your details</h3>
             <p style={{ fontSize: 11, color: palette.faint, marginBottom: 4 }}>
-              Recorded for reference — they don't affect the score
+              These don't affect the score
             </p>
             {recorded.map(key => {
               const value = mine[key as ReviewDetailKey] ?? 0;

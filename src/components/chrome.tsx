@@ -1,7 +1,7 @@
 /**
  * The pieces every püpi screen is built out of.
  *
- * Presentational only — they take contract types and render them. None of them
+ * Presentational only, they take contract types and render them. None of them
  * fetch, and none of them decide what a user may see; that arrives already
  * filtered from `../api`.
  */
@@ -9,6 +9,7 @@
 import type { ReactNode } from "react";
 import type { Bathroom, UserSummary, WashroomType } from "../../shared/api";
 import { gradient, initials, locationOf, palette, scoreColor, washroomMeta } from "../lib/display";
+import { BookmarkIcon, HomeIcon, PinIcon, PlusIcon, ProfileIcon, TrophyIcon } from "./icons";
 
 // ─── Badges ───────────────────────────────────────────────────────────────────
 
@@ -125,7 +126,7 @@ export function BathroomRow({
  * The two numbers a bathroom has, side by side and named.
  *
  * They are never the same thing: AVG is what everyone thinks, YOURS is where it
- * sits in your own ranking. A dash means you haven't rated it — not a zero, and
+ * sits in your own ranking. A dash means you haven't rated it, not a zero, and
  * not a "new" badge, which said something about the row rather than the score.
  */
 export function ScorePair({ mine, average }: { mine: number | null | undefined; average: number | null }) {
@@ -168,22 +169,23 @@ export function BackButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-export function SaveButton({ on, onToggle, disabled }: { on: boolean; onToggle: () => void; disabled?: boolean }) {
+export function BookmarkButton({ on, onToggle, disabled }: { on: boolean; onToggle: () => void; disabled?: boolean }) {
   return (
     <button
       onClick={onToggle}
       disabled={disabled}
-      className="rounded-full px-3 py-1.5 active:opacity-70"
+      title={disabled ? "You can only bookmark washrooms you use" : on ? "Bookmarked" : "Bookmark"}
+      className="flex items-center justify-center active:opacity-70"
       style={{
-        fontSize: 12,
-        fontWeight: 700,
-        background: on ? palette.periwinkle : "white",
-        color: on ? "white" : palette.muted,
+        width: 38,
+        height: 38,
+        borderRadius: 12,
+        background: "white",
         opacity: disabled ? 0.4 : 1,
-        border: on ? "none" : `1.5px solid ${palette.border}`,
+        border: `1.5px solid ${palette.border}`,
       }}
     >
-      {on ? "Saved" : "Save"}
+      <BookmarkIcon filled={on} />
     </button>
   );
 }
@@ -223,11 +225,13 @@ export function SearchField({
   onChange,
   placeholder,
   onFocus,
+  autoFocus,
 }: {
   value: string;
   onChange: (next: string) => void;
   placeholder: string;
   onFocus?: () => void;
+  autoFocus?: boolean;
 }) {
   return (
     <div
@@ -239,6 +243,7 @@ export function SearchField({
         value={value}
         onChange={e => onChange(e.target.value)}
         onFocus={onFocus}
+        autoFocus={autoFocus}
         className="flex-1 bg-transparent outline-none"
         style={{ fontSize: 15, color: palette.charcoal, fontFamily: "inherit" }}
       />
@@ -307,6 +312,60 @@ export function Segmented<T extends string>({
   );
 }
 
+/**
+ * A one-of-N filter that stays one line tall.
+ *
+ * A native `<select>` on purpose: it opens the platform's own picker, so there is
+ * no popover of ours to position, dismiss or animate, and no tap that has to wait
+ * for React before anything visible happens.
+ */
+export function Dropdown<T extends string>({
+  value,
+  options,
+  onChange,
+  label,
+}: {
+  value: T;
+  options: { id: T; label: string }[];
+  onChange: (next: T) => void;
+  /** Read out to assistive tech; the chosen option is the only visible text. */
+  label: string;
+}) {
+  return (
+    <div
+      className="relative inline-flex items-center"
+      style={{ background: "white", borderRadius: 12, border: `1.5px solid ${palette.border}` }}
+    >
+      <select
+        aria-label={label}
+        value={value}
+        onChange={e => onChange(e.target.value as T)}
+        className="appearance-none bg-transparent outline-none"
+        style={{
+          fontSize: 13,
+          fontWeight: 700,
+          color: palette.charcoal,
+          fontFamily: "inherit",
+          padding: "8px 30px 8px 12px",
+        }}
+      >
+        {options.map(option => (
+          <option key={option.id} value={option.id}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <span
+        aria-hidden
+        className="pointer-events-none absolute"
+        style={{ right: 12, fontSize: 9, color: palette.faint }}
+      >
+        ▾
+      </span>
+    </div>
+  );
+}
+
 export function EmptyState({ title, body, action }: { title: string; body: string; action?: ReactNode }) {
   return (
     <div className="flex flex-col items-center justify-center px-8 py-14 text-center">
@@ -362,24 +421,27 @@ export function LoadingScreen() {
 // ─── Tab bar ──────────────────────────────────────────────────────────────────
 
 /**
- * Five slots, so the rate button sits in the middle where it belongs.
+ * Five slots, with the rate button dead centre.
  *
- * It was four before — two tabs, the button, one tab — which read as off-centre
- * because it was. Saved fills the gap: bookmarks were buried as a tab inside the
- * profile, which is a strange place for a list you open constantly.
- *
- * Labels, not icons. A drawn house and a drawn trophy needed decoding; the words
- * don't.
+ * The two you reach for mid-errand flank it, Near me on the left, Rankings on
+ * the right, so the thumb lands on them without crossing the bar.
  */
-export type Tab = "home" | "rankings" | "saved" | "profile";
+export type Tab = "home" | "nearby" | "rankings" | "profile";
+
+const TAB_ICONS: Record<Tab, (props: { active?: boolean }) => ReactNode> = {
+  home: HomeIcon,
+  nearby: PinIcon,
+  rankings: TrophyIcon,
+  profile: ProfileIcon,
+};
 
 export function TabBar({ active, onSelect, onRate }: { active: Tab; onSelect: (tab: Tab) => void; onRate: () => void }) {
   const left: { id: Tab; label: string }[] = [
     { id: "home", label: "Home" },
-    { id: "rankings", label: "Rankings" },
+    { id: "nearby", label: "Near me" },
   ];
   const right: { id: Tab; label: string }[] = [
-    { id: "saved", label: "Saved" },
+    { id: "rankings", label: "Rankings" },
     { id: "profile", label: "Profile" },
   ];
 
@@ -392,7 +454,7 @@ export function TabBar({ active, onSelect, onRate }: { active: Tab; onSelect: (t
         <TabButton key={tab.id} tab={tab} active={active === tab.id} onSelect={onSelect} />
       ))}
 
-      {/* Not a tab — it opens the review flow, which has no tab bar of its own. */}
+      {/* Not a tab, it opens the review flow, which has no tab bar of its own. */}
       <button className="-mt-7 flex flex-col items-center" onClick={onRate}>
         <div
           className="flex items-center justify-center"
@@ -402,14 +464,9 @@ export function TabBar({ active, onSelect, onRate }: { active: Tab; onSelect: (t
             borderRadius: "50%",
             background: gradient.brand,
             boxShadow: "0 4px 20px #7B8CDE44",
-            color: "white",
-            fontSize: 28,
-            fontWeight: 300,
-            lineHeight: 1,
-            paddingBottom: 3,
           }}
         >
-          +
+          <PlusIcon />
         </div>
         <span style={{ color: palette.periwinkle, fontSize: 10, fontWeight: 600, marginTop: 4 }}>Rate</span>
       </button>
@@ -430,26 +487,19 @@ function TabButton({
   active: boolean;
   onSelect: (tab: Tab) => void;
 }) {
+  const Icon = TAB_ICONS[tab.id];
   return (
-    <button className="flex flex-col items-center px-2 py-1" style={{ minWidth: 60 }} onClick={() => onSelect(tab.id)}>
+    <button className="flex flex-col items-center gap-1 px-2 py-1" style={{ minWidth: 58 }} onClick={() => onSelect(tab.id)}>
+      <Icon active={active} />
       <span
         style={{
           color: active ? palette.periwinkle : palette.faint,
-          fontSize: 12,
-          fontWeight: active ? 700 : 500,
+          fontSize: 10,
+          fontWeight: active ? 600 : 400,
         }}
       >
         {tab.label}
       </span>
-      <span
-        style={{
-          marginTop: 5,
-          width: 16,
-          height: 2,
-          borderRadius: 2,
-          background: active ? palette.periwinkle : "transparent",
-        }}
-      />
     </button>
   );
 }

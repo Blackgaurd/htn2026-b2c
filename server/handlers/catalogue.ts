@@ -1,7 +1,7 @@
 /**
  * The catalogue: browse and detail.
  *
- * There is no create-bathroom handler here and there never will be — rows arrive
+ * There is no create-bathroom handler here and there never will be, rows arrive
  * from `shared/catalogue.yaml` via `bun run db:catalogue` and nowhere else.
  *
  * Both endpoints are gated: `listBathrooms` filters to `visibleTypes(pref)`, and
@@ -32,7 +32,7 @@ import { bookmarks, want_to_go } from "../schema";
 /**
  * The whole catalogue, in location order, filtered to what this user uses.
  *
- * Here the gate *filters* — a list of things you can't use isn't a refusal, it's
+ * Here the gate *filters*: a list of things you can't use isn't a refusal, it's
  * just a shorter list. `getBathroom` is where it refuses.
  *
  * One `aggregates()` call covers every row: `global_score` is the mean of every
@@ -52,7 +52,7 @@ export function listBathrooms(req: Request): Bathroom[] {
  * One washroom, with everything the detail screen shows: your review, the
  * reviews of people you follow, and which of your saved lists it's on.
  *
- * The gate **rejects** here (403) rather than returning a stripped row — a screen
+ * The gate **rejects** here (403) rather than returning a stripped row: a screen
  * must not be able to quietly render a washroom its user doesn't use. Every score
  * on this page is derived from rank by `scoredReviews()`; none is stored.
  */
@@ -64,7 +64,7 @@ export function getBathroom(req: Request & { params: { id: string } }): Bathroom
 
   const mine = scoredReviews(user.id).find(r => r.review.bathroom_id === id);
 
-  // Friends' takes, best first — each score is that friend's own ranking, not
+  // Friends' takes, best first. Each score is that friend's own ranking, not
   // the global mean and not yours.
   const friend_reviews: FriendReview[] = followeeIds(user.id)
     .flatMap(friendId => {

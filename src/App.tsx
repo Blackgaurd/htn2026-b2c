@@ -1,5 +1,5 @@
 /**
- * App shell — auth gate, screen state, and the tab bar.
+ * App shell, auth gate, screen state, and the tab bar.
  *
  * A tagged union instead of a router, because every screen either belongs to a tab
  * or is a step in the review flow, and the flow's steps carry data (the draft, the
@@ -7,7 +7,7 @@
  * CLAUDE.md before reaching for a router.
  *
  * Navigating unmounts the old screen, so each one reloads from `../api` when it
- * mounts — that's how the rankings catch up after a review without any cache to
+ * mounts, that's how the rankings catch up after a review without any cache to
  * invalidate.
  */
 
@@ -23,12 +23,12 @@ import { LoginScreen } from "./components/LoginScreen";
 import { RegisterScreen } from "./components/RegisterScreen";
 import { HomeScreen } from "./components/HomeScreen";
 import { DetailScreen } from "./components/DetailScreen";
-import { RateSelectScreen } from "./components/RateSelectScreen";
+import { SearchScreen } from "./components/SearchScreen";
+import { NearMeScreen } from "./components/NearMeScreen";
 import { RateScoreScreen } from "./components/RateScoreScreen";
 import { CompareScreen } from "./components/CompareScreen";
 import { CompareResultScreen } from "./components/CompareResultScreen";
 import { RankingsScreen } from "./components/RankingsScreen";
-import { SavedScreen } from "./components/SavedScreen";
 import { PeopleScreen } from "./components/PeopleScreen";
 import { ProfileScreen } from "./components/ProfileScreen";
 
@@ -37,19 +37,20 @@ type Screen =
   | { name: "login" }
   | { name: "register" }
   | { name: "home" }
+  | { name: "nearby" }
   | { name: "rankings" }
-  | { name: "saved" }
-  /** `userId` undefined is your own profile — the only one with a tab bar. */
+  /** One screen, two jobs: `pick` decides whether it opens or rates what you choose. */
+  | { name: "search"; mode: "open" | "rate"; origin: Screen }
+  /** `userId` undefined is your own profile, the only one with a tab bar. */
   | { name: "profile"; userId?: number }
   | { name: "people"; origin: Screen }
   | { name: "detail"; bathroomId: number; origin: Tab }
-  | { name: "rate-select" }
   | { name: "rate-score"; bathroom: Bathroom }
   | { name: "compare"; draft: ReviewDraft }
   | { name: "result"; result: SubmitReviewResult };
 
 /**
- * The screen a tab points at — the inverse of `tabFor`.
+ * The screen a tab points at, the inverse of `tabFor`.
  *
  * A switch rather than `{ name: tab }` because the union is discriminated on a
  * literal, and a variable typed as the union of all four doesn't narrow to any one
@@ -60,10 +61,10 @@ function screenForTab(tab: Tab): Screen {
   switch (tab) {
     case "home":
       return { name: "home" };
+    case "nearby":
+      return { name: "nearby" };
     case "rankings":
       return { name: "rankings" };
-    case "saved":
-      return { name: "saved" };
     case "profile":
       return { name: "profile" };
   }
@@ -74,10 +75,10 @@ function tabFor(screen: Screen): Tab | null {
   switch (screen.name) {
     case "home":
       return "home";
+    case "nearby":
+      return "nearby";
     case "rankings":
       return "rankings";
-    case "saved":
-      return "saved";
     case "profile":
       return screen.userId === undefined ? "profile" : null;
     case "detail":
@@ -137,7 +138,7 @@ export function App() {
               <TabBar
                 active={tab}
                 onSelect={next => setScreen(screenForTab(next))}
-                onRate={() => setScreen({ name: "rate-select" })}
+                onRate={() => setScreen({ name: "search", mode: "rate", origin: { name: "home" } })}
               />
             )}
           </div>
@@ -168,7 +169,26 @@ export function App() {
           <HomeScreen
             onOpenBathroom={b => openBathroom(b, "home")}
             onOpenProfile={userId => setScreen({ name: "profile", userId })}
+            onOpenSearch={() => setScreen({ name: "search", mode: "open", origin: here })}
             onFindPeople={() => setScreen({ name: "people", origin: here })}
+          />
+        );
+      }
+
+      case "nearby":
+        return <NearMeScreen onOpen={b => openBathroom(b, "nearby")} />;
+
+      case "search": {
+        const { mode, origin } = screen;
+        return (
+          <SearchScreen
+            title={mode === "rate" ? "Which washroom?" : "Search"}
+            onBack={() => setScreen(origin)}
+            onPick={bathroom =>
+              mode === "rate"
+                ? setScreen({ name: "rate-score", bathroom })
+                : setScreen({ name: "detail", bathroomId: bathroom.id, origin: tabFor(origin) ?? "home" })
+            }
           />
         );
       }
@@ -179,25 +199,17 @@ export function App() {
           <DetailScreen
             bathroomId={screen.bathroomId}
             onBack={() => setScreen(screenForTab(origin))}
-            // Step 1 is choosing a bathroom, and it's already chosen — skip it.
+            // Step 1 is choosing a bathroom, and it's already chosen, skip it.
             onRate={bathroom => setScreen({ name: "rate-score", bathroom })}
           />
         );
       }
 
-      case "rate-select":
-        return (
-          <RateSelectScreen
-            onBack={() => setScreen({ name: "home" })}
-            onPick={bathroom => setScreen({ name: "rate-score", bathroom })}
-          />
-        );
-
       case "rate-score":
         return (
           <RateScoreScreen
             bathroom={screen.bathroom}
-            onBack={() => setScreen({ name: "rate-select" })}
+            onBack={() => setScreen({ name: "search", mode: "rate", origin: { name: "home" } })}
             onContinue={draft => setScreen({ name: "compare", draft })}
           />
         );
@@ -206,22 +218,15 @@ export function App() {
         return (
           <CompareScreen
             draft={screen.draft}
-            onBack={() => setScreen({ name: "rate-select" })}
+            onBack={() => setScreen({ name: "rate-score", bathroom: screen.draft.bathroom })}
             onDone={result => setScreen({ name: "result", result })}
           />
         );
 
       case "result":
         return (
-          <CompareResultScreen
-            result={screen.result}
-            onDone={() => setScreen({ name: "home" })}
-            onSeeRankings={() => setScreen({ name: "rankings" })}
-          />
+          <CompareResultScreen result={screen.result} onDone={() => setScreen({ name: "rankings" })} />
         );
-
-      case "saved":
-        return <SavedScreen onOpen={b => openBathroom(b, "saved")} />;
 
       case "rankings":
         return (

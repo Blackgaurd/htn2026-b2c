@@ -1,13 +1,18 @@
 /**
- * The duel — where a score actually comes from.
+ * The duel: where a score actually comes from.
  *
- * The new review is held up against bathrooms already in the same bucket, and each
- * answer halves the remaining range (see `src/lib/duel.ts`), so a bucket of seven
- * costs three taps. When the range closes we know the insert position and that —
- * not a star average — is what `submitReview` is given.
+ * Left or right, not top and bottom. "Which was better" is a symmetrical question
+ * and a stacked pair answers it badly: the top card reads as the default and your
+ * thumb travels further to disagree with it. Side by side, neither is first.
  *
- * With an empty bucket there's nothing to compare against, so it submits straight
- * through at position 0 rather than showing a question with one card.
+ * The two cards are a fixed height rather than stretched to the screen. Filling
+ * the page made each one a tall column of mostly nothing, with the two names far
+ * enough apart to need a second look; sized to their contents they read as a
+ * pair, and both sit under the thumb.
+ *
+ * The pick is applied on the same tick you tap. There used to be a half-second
+ * pause to show a checkmark, which on a three-question run meant a second and a
+ * half of watching an animation you'd already finished thinking about.
  */
 
 import { useEffect, useState } from "react";
@@ -16,8 +21,8 @@ import { BUCKET_LABELS } from "../../shared/api";
 import { listMyRankings, submitReview } from "../api";
 import type { Duel, ReviewDraft } from "../lib/duel";
 import { answerDuel, duelDone, duelOpponent, duelPosition, duelTotalRounds, skipDuel, startDuel } from "../lib/duel";
-import { gradient, locationOf, palette } from "../lib/display";
-import { BackButton, LoadingScreen, Notice, ScoreChip, Spinner, WashroomBadge } from "./chrome";
+import { locationOf, palette, scoreColor } from "../lib/display";
+import { BackButton, LoadingScreen, Notice, Spinner, WashroomBadge } from "./chrome";
 
 export function CompareScreen({
   draft,
@@ -29,11 +34,9 @@ export function CompareScreen({
   onDone: (result: SubmitReviewResult) => void;
 }) {
   const [duel, setDuel] = useState<Duel | null>(null);
-  const [picked, setPicked] = useState<"new" | "old" | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load the bucket's existing entries once, then the duel is pure local state.
   useEffect(() => {
     let live = true;
     listMyRankings().then(
@@ -51,7 +54,6 @@ export function CompareScreen({
     };
   }, [draft.bucket, draft.bathroom.id]);
 
-  // Whenever the search window closes, that's the answer — send it.
   useEffect(() => {
     if (!duel || !duelDone(duel) || submitting) return;
     setSubmitting(true);
@@ -90,82 +92,78 @@ export function CompareScreen({
     );
   }
 
-  const total = duelTotalRounds(duel);
-
-  function choose(side: "new" | "old") {
-    if (picked) return;
-    setPicked(side);
-    // A beat so the checkmark reads, then the next question.
-    setTimeout(() => {
-      setPicked(null);
-      setDuel(current => (current ? answerDuel(current, side === "new") : current));
-    }, 520);
-  }
+  const total = Math.max(duelTotalRounds(duel), duel.asked + 1);
 
   return (
     <div className="flex h-full flex-col" style={{ background: palette.bg }}>
       <div className="px-5 pb-4 pt-14">
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-4 flex items-center justify-between">
           <BackButton onClick={onBack} />
-          <div className="text-center">
-            <p style={{ fontSize: 11, fontWeight: 700, color: palette.muted, letterSpacing: "0.08em" }}>
-              {BUCKET_LABELS[draft.bucket].toUpperCase()}
-            </p>
-            <p style={{ fontSize: 17, fontWeight: 800, color: palette.charcoal }}>
-              {duel.asked + 1} of {Math.max(total, duel.asked + 1)}
-            </p>
-          </div>
-          <div style={{ width: 38 }} />
+          <p style={{ fontSize: 11, fontWeight: 700, color: palette.muted, letterSpacing: "0.08em" }}>
+            {BUCKET_LABELS[draft.bucket].toUpperCase()}
+          </p>
         </div>
 
-        <div className="mb-1 flex justify-center gap-2">
-          {Array.from({ length: Math.max(total, duel.asked + 1) }).map((_, i) => (
+        <div className="flex justify-center gap-2">
+          {Array.from({ length: total }).map((_, i) => (
             <div
               key={i}
               style={{
                 width: i === duel.asked ? 24 : 8,
                 height: 8,
                 borderRadius: 999,
-                background: i < duel.asked ? "#3DBF82" : i === duel.asked ? palette.periwinkle : palette.border,
-                transition: "all 0.3s ease",
+                background: i < duel.asked ? palette.periwinkle : i === duel.asked ? palette.charcoal : palette.border,
+                transition: "all 0.25s ease",
               }}
             />
           ))}
         </div>
+
+        <p className="mt-4 text-center" style={{ fontSize: 22, fontWeight: 800, color: palette.charcoal }}>
+          Which was better?
+        </p>
       </div>
 
-      <div className="mb-4 px-5">
-        <div className="rounded-2xl py-3 text-center" style={{ background: gradient.wash }}>
-          <p style={{ fontSize: 20, fontWeight: 800, color: palette.charcoal }}>Which was better?</p>
-          <p style={{ fontSize: 13, color: palette.muted, marginTop: 2 }}>Tap the one you preferred</p>
-        </div>
-      </div>
-
-      <div className="flex flex-1 flex-col justify-center gap-3 px-5 pb-4">
+      {/* Equal halves, equal weight. Neither side is the default. */}
+      <div className="flex flex-1 items-center gap-2.5 px-5 pb-4">
         <DuelCard
           title={locationOf(draft.bathroom)}
           washroomType={draft.bathroom.washroom_type}
-          chip={<ScoreChip score={null} label="Rating now" />}
-          chosen={picked === "new"}
-          dimmed={picked === "old"}
-          onChoose={() => choose("new")}
+          caption="Rating now"
+          onChoose={() => setDuel(current => (current ? answerDuel(current, true) : current))}
         />
+
+        <span
+          className="flex-shrink-0"
+          style={{ fontSize: 11, fontWeight: 800, color: palette.faint, letterSpacing: "0.08em" }}
+        >
+          OR
+        </span>
 
         <DuelCard
           title={locationOf(opponent.bathroom)}
           washroomType={opponent.bathroom.washroom_type}
-          chip={<ScoreChip score={opponent.score} />}
-          rank={opponent.rank}
-          chosen={picked === "old"}
-          dimmed={picked === "new"}
-          onChoose={() => choose("old")}
+          caption={`#${opponent.rank} on your list`}
+          score={opponent.score}
+          onChoose={() => setDuel(current => (current ? answerDuel(current, false) : current))}
         />
+      </div>
 
+      <div className="flex justify-center px-5 pb-8">
         <button
           onClick={() => setDuel(current => (current ? skipDuel(current) : current))}
-          style={{ fontSize: 13, fontWeight: 600, color: palette.faint, textAlign: "center", padding: "4px 0" }}
+          className="px-5 py-2.5 active:opacity-70"
+          style={{
+            borderRadius: 999,
+            fontSize: 13,
+            fontWeight: 600,
+            color: palette.muted,
+            background: "white",
+            border: `1.5px solid ${palette.border}`,
+          }}
+          title="Stop comparing and put it at the bottom of this band"
         >
-          Skip the rest — put it at the bottom
+          Skip
         </button>
       </div>
     </div>
@@ -175,57 +173,51 @@ export function CompareScreen({
 function DuelCard({
   title,
   washroomType,
-  chip,
-  rank,
-  chosen,
-  dimmed,
+  caption,
+  score,
   onChoose,
 }: {
   title: string;
   washroomType: WashroomType;
-  chip: React.ReactNode;
-  rank?: number;
-  chosen: boolean;
-  dimmed: boolean;
+  caption: string;
+  score?: number;
   onChoose: () => void;
 }) {
   return (
     <button
       onClick={onChoose}
-      className="w-full text-left"
+      className="flex flex-1 flex-col items-center justify-center px-3.5 text-center transition-transform active:scale-[0.97]"
       style={{
-        borderRadius: 24,
-        transform: chosen ? "scale(1.02)" : dimmed ? "scale(0.97)" : "scale(1)",
-        opacity: dimmed ? 0.45 : 1,
-        transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
+        height: 216,
+        borderRadius: 22,
+        background: "white",
+        border: `2px solid ${palette.border}`,
+        boxShadow: "0 2px 14px #0000000D",
+        minWidth: 0,
       }}
     >
+      <WashroomBadge type={washroomType} />
+
       <div
+        className="mt-2.5"
+        style={{ fontSize: 14, fontWeight: 700, color: palette.charcoal, lineHeight: 1.35, overflowWrap: "anywhere" }}
+      >
+        {title}
+      </div>
+
+      <div
+        className="mt-3 tabular-nums"
         style={{
-          borderRadius: 24,
-          background: chosen ? gradient.wash : "white",
-          border: chosen ? `2.5px solid ${palette.periwinkle}` : "2.5px solid transparent",
-          boxShadow: chosen ? "0 8px 32px #7B8CDE33" : "0 2px 16px #0000000D",
+          fontSize: 28,
+          fontWeight: 800,
+          color: score === undefined ? palette.faint : scoreColor(score),
+          lineHeight: 1,
         }}
       >
-        <div className="p-5">
-          <div style={{ fontSize: 15, fontWeight: 700, color: palette.charcoal, lineHeight: 1.3 }}>{title}</div>
-
-          <div className="mt-3 flex items-center gap-2">
-            <WashroomBadge type={washroomType} />
-            {rank !== undefined && (
-              <span style={{ fontSize: 11, fontWeight: 600, color: palette.faint }}>#{rank} on your list</span>
-            )}
-            <span className="ml-auto">{chip}</span>
-          </div>
-
-          {chosen && (
-            <div className="mt-3 flex items-center gap-2 pt-3" style={{ borderTop: `1px solid ${palette.border}` }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: palette.periwinkle }}>✓ Your pick</span>
-            </div>
-          )}
-        </div>
+        {score === undefined ? "–" : score.toFixed(1)}
       </div>
+
+      <div style={{ fontSize: 11, fontWeight: 600, color: palette.faint, marginTop: 6 }}>{caption}</div>
     </button>
   );
 }

@@ -1,5 +1,5 @@
 /**
- * Log in. Email only decides who you are — no password is checked, by design
+ * Log in. Email only decides who you are, no password is checked, by design
  * (see the auth note in CLAUDE.md). The field is here because the design has it
  * and because turning it real later shouldn't move any pixels.
  *

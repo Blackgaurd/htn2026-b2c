@@ -1,5 +1,5 @@
 /**
- * My list — every bathroom you've rated, best first.
+ * My list, every bathroom you've rated, best first.
  *
  * There's no podium and no medals. The list is already ordered by score, so a
  * three-column trophy stand above it restated the top three in a second visual
@@ -28,9 +28,6 @@ export function RankingsScreen({ onOpen }: { onOpen: (bathroom: Bathroom) => voi
     <div className="flex h-full flex-col" style={{ background: palette.bg }}>
       <div className="px-5 pb-3 pt-14">
         <h1 style={{ fontSize: 24, fontWeight: 800, color: palette.charcoal }}>My Rankings</h1>
-        <p style={{ fontSize: 13, color: palette.muted }}>
-          {ranked.length} rated, best first
-        </p>
       </div>
 
       <div className="phone-scroll flex-1 overflow-y-auto px-5 pb-4">

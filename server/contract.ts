@@ -8,7 +8,7 @@
  *
  * Note `Bathroom` and `Review` are the *served* shapes (row + computed score or
  * aggregates), so the guard is against `BathroomRow` / `ReviewRow`, not those.
- * `users` carries an extra `password` column the contract has no field for — extra
+ * `users` carries an extra `password` column the contract has no field for, extra
  * properties don't break assignability, and `publicUser()` is what keeps it off
  * the wire.
  *
@@ -16,7 +16,7 @@
  * follows, bookmarks and want_to_go are only ever served as `UserSummary` or
  * `Bathroom`, which the handlers compose.
  *
- * Types only — erased at build, no runtime cost. Imported by `server/index.ts`
+ * Types only, erased at build, no runtime cost. Imported by `server/index.ts`
  * purely to keep it in the typecheck graph.
  */
 

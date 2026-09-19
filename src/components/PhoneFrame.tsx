@@ -3,11 +3,11 @@
  * mobile on a laptop screen. Dimensions match the Figma frame (390×844).
  *
  * The status bar floats *over* the app surface rather than taking a row of its
- * own — that's why every screen starts with `pt-14`, and why a gradient header can
+ * own, that's why every screen starts with `pt-14`, and why a gradient header can
  * run all the way to the top of the device the way it does in the design. It's
  * `pointer-events-none`, so it never eats a tap meant for the screen underneath.
  *
- * Purely cosmetic — nothing inside depends on it. Drop it from App.tsx if you ever
+ * Purely cosmetic, nothing inside depends on it. Drop it from App.tsx if you ever
  * want the app full-bleed.
  */
 
@@ -41,7 +41,7 @@ export function PhoneFrame({ children }: { children: ReactNode }) {
         </div>
       </div>
 
-      {/* App surface — the only part your screens own */}
+      {/* App surface, the only part your screens own */}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
     </div>
   );

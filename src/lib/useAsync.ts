@@ -1,7 +1,7 @@
 /**
  * The three lines of state every screen needs around an `../api` call.
  *
- * Not a data-fetching library and not trying to become one — no cache, no
+ * Not a data-fetching library and not trying to become one, no cache, no
  * deduping, no retries. Each screen owns its own load, and `reload()` is how a
  * mutation gets the list to catch up.
  */
@@ -22,7 +22,7 @@ export function useAsync<T>(load: () => Promise<T>, deps: unknown[] = []): Async
   const [nonce, setNonce] = useState(0);
 
   // The caller passes a fresh closure every render, so the dep list is the
-  // contract for when to re-run — same bargain as useEffect.
+  // contract for when to re-run, same bargain as useEffect.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const run = useCallback(load, deps);
 
