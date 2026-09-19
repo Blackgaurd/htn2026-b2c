@@ -1,0 +1,42 @@
+@import "../styles/globals.css";
+
+@layer base {
+  :root {
+    @apply font-sans;
+  }
+
+  body {
+    @apply m-0 min-h-screen min-w-[320px] bg-muted/40 text-foreground;
+  }
+}
+
+/*
+ * The phone bezel is a fixed 844px tall, which overflows a typical laptop
+ * viewport. Scale it down on short screens so the whole device stays visible
+ * during a demo without the page scrolling.
+ */
+.phone-stage {
+  transform-origin: center;
+}
+
+@media (max-height: 940px) {
+  .phone-stage {
+    transform: scale(0.85);
+    margin-block: -70px;
+  }
+}
+
+@media (max-height: 820px) {
+  .phone-stage {
+    transform: scale(0.72);
+    margin-block: -120px;
+  }
+}
+
+@media (prefers-reduced-motion) {
+  *,
+  ::before,
+  ::after {
+    animation: none !important;
+  }
+}
