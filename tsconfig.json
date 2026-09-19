@@ -32,5 +32,7 @@
     "noPropertyAccessFromIndexSignature": false
   },
 
-  "exclude": ["dist", "node_modules"]
+  // "Design bathroom rating app" is the Figma Make export we ported the UI from —
+  // reference material, its own Vite project, not part of this build.
+  "exclude": ["dist", "node_modules", "Design bathroom rating app"]
 }

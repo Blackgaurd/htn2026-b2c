@@ -1,0 +1,10 @@
+{
+  "description": "Rate and rank campus bathrooms at the University of Waterloo with a fun, user-friendly app designed for students, enhancing their bathroom experience.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

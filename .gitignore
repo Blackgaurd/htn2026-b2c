@@ -37,3 +37,11 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # Finder (MacOS) folder config
 .DS_Store
+
+# The Figma Make export ships its own CLAUDE.md (it just imports its AGENTS.md).
+# The folder is reference material we build *from*, not a project we build *in* —
+# and those instructions describe vite/pnpm/Figma deploys, which contradict this
+# repo's. Keep the file on disk, out of the repo, so it never becomes live
+# instructions for anyone working here.
+Design bathroom rating app/CLAUDE.md
+Design bathroom rating app/AGENTS.md
