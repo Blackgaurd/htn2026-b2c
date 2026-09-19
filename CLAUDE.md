@@ -25,6 +25,14 @@ Data access goes through Drizzle ORM over `bun:sqlite`:
 Localhost-only by design: no deploy target, no build or static-export step. Don't add
 either back without being asked.
 
+## Git
+
+Work on `main` and push straight to it. Don't create a branch, don't open a PR, don't
+ask whether to branch first — this is a hackathon repo with no review gate, and the
+usual "branch off the default branch" reflex just adds friction here.
+
+Committing and pushing still only happen when asked.
+
 Never reference `process.env` from anything under `src/`. It is browser code — an
 unset var ships a literal `process.env.X` and the page dies with `Can't find
 variable: process`, and a `typeof process` guard cannot rescue it (the guard is
