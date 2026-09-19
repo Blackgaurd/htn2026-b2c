@@ -10,6 +10,7 @@ import { useState } from "react";
 import { login } from "../api";
 import { gradient, palette } from "../lib/display";
 import { Notice } from "./chrome";
+import { AuthField } from "./AuthField";
 
 export function LoginScreen({ onDone, onRegister }: { onDone: () => void; onRegister: () => void }) {
   const [email, setEmail] = useState("");
@@ -31,61 +32,36 @@ export function LoginScreen({ onDone, onRegister }: { onDone: () => void; onRegi
     }
   }
 
-  const fields = [
-    { label: "Email", placeholder: "a24chen@uwaterloo.ca", type: "email", value: email, set: setEmail },
-    { label: "Password", placeholder: "••••••••", type: "password", value: password, set: setPassword },
-  ];
-
   return (
-    <div className="flex h-full flex-col" style={{ background: palette.bg }}>
-      <div className="flex flex-1 flex-col justify-center px-6">
-        <div className="mb-10 flex items-center gap-3">
-          <div
-            className="flex items-center justify-center"
-            style={{ width: 52, height: 52, borderRadius: 16, background: gradient.brand }}
-          >
-            <span style={{ fontSize: 24 }}>🚻</span>
-          </div>
-          <span style={{ fontSize: 32, fontWeight: 800, color: palette.charcoal, letterSpacing: "-1px" }}>
+    <div className="phone-scroll flex h-full flex-col overflow-auto" style={{ background: palette.bg }}>
+      <div className="flex flex-1 flex-col px-6 pb-8 pt-16">
+        <div className="mb-10">
+          <div style={{ fontSize: 32, fontWeight: 800, color: palette.charcoal, letterSpacing: "-1px" }}>
             p<span style={{ color: palette.periwinkle }}>ü</span>pi
-          </span>
+          </div>
+          <h1 style={{ fontSize: 28, fontWeight: 800, color: palette.charcoal, lineHeight: 1.2, marginTop: 30 }}>Welcome back</h1>
+          <p style={{ color: palette.muted, fontSize: 14, marginTop: 6 }}>Sign in to your account.</p>
         </div>
 
-        <h2 style={{ fontSize: 26, fontWeight: 800, color: palette.charcoal, marginBottom: 4 }}>Welcome back</h2>
-        <p style={{ color: palette.muted, fontSize: 14, marginBottom: 32 }}>Sign in to your account</p>
-
         <div className="flex flex-col gap-4">
-          {fields.map(field => (
-            <div key={field.label}>
-              <label style={{ fontSize: 13, fontWeight: 600, color: palette.muted, display: "block", marginBottom: 6 }}>
-                {field.label}
-              </label>
-              <input
-                type={field.type}
-                placeholder={field.placeholder}
-                value={field.value}
-                onChange={e => field.set(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && submit()}
-                className="w-full px-4 py-3.5 outline-none"
-                style={{
-                  borderRadius: 14,
-                  background: "white",
-                  border: `1.5px solid ${palette.border}`,
-                  fontSize: 15,
-                  color: palette.charcoal,
-                  fontFamily: "inherit",
-                }}
-                onFocus={e => {
-                  e.target.style.borderColor = palette.periwinkle;
-                  e.target.style.boxShadow = "0 0 0 3px #7B8CDE18";
-                }}
-                onBlur={e => {
-                  e.target.style.borderColor = palette.border;
-                  e.target.style.boxShadow = "none";
-                }}
-              />
-            </div>
-          ))}
+          <AuthField
+            id="login-email"
+            label="Email"
+            type="email"
+            placeholder="a24chen@uwaterloo.ca"
+            value={email}
+            onChange={setEmail}
+            onKeyDown={e => e.key === "Enter" && submit()}
+          />
+          <AuthField
+            id="login-password"
+            label="Password"
+            type="password"
+            placeholder="••••••••"
+            value={password}
+            onChange={setPassword}
+            onKeyDown={e => e.key === "Enter" && submit()}
+          />
 
           {error && <Notice tone="error">{error}</Notice>}
 
@@ -110,7 +86,7 @@ export function LoginScreen({ onDone, onRegister }: { onDone: () => void; onRegi
       <div className="px-6 pb-12 text-center">
         <p style={{ color: palette.muted, fontSize: 14 }}>
           New to püpi?{" "}
-          <button onClick={onRegister} style={{ color: palette.periwinkle, fontWeight: 700 }}>
+          <button onClick={onRegister} style={{ color: palette.periwinkleDeep, fontWeight: 700 }}>
             Create account
           </button>
         </p>

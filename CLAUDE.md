@@ -69,10 +69,15 @@ frontend, the mock client and the server all filter through the same function.
 This is the core mechanic. Build it first; everything else is a list around it.
 
 1. Pick a bathroom from the catalogue.
-2. Give it 1–5 stars. That is the only input that touches the score, and it picks
-   the band via `bucketForRating()`: 4–5★ loved, 3★ fine, 1–2★ never again. There is
-   no separate "overall verdict" step, asking twice invites two answers that
-   disagree.
+2. Say how it was: **Good / OK / Bad**, three buttons in the three score colours.
+   That is the only input that touches the score, and it *is* the band, loved /
+   fine / never. It used to be five stars, which asked for a precision the answer
+   doesn't have: the stars only ever chose a band and the duel decided everything
+   inside it, so four and five stars meant the same thing. `ratingForBucket()`
+   turns the button back into the stored `rating`, and `bucketForRating()` is
+   still its inverse, so nothing downstream knows which control produced it.
+   There is no second "overall verdict" step, asking twice invites two answers
+   that disagree.
 3. The app runs a comparison duel *within that band*: "which was better?" against
    bathrooms you've already reviewed, binary-search style, ~3 comparisons max. Each
    answer halves the candidate range.
@@ -83,7 +88,10 @@ This is the core mechanic. Build it first; everything else is a list around it.
 
 **A bathroom has exactly one score.** The detail ratings (`detailKeysFor`), now
 cleanliness, accessibility, smell and privacy, are notes about the room and are
-**never averaged into anything**. They are shown expanded rather than behind an
+**never averaged into the score**. They *are* averaged with each other, per
+washroom, as `Bathroom.detail_averages`, which is what the search and Near me
+tiles print under the name, and that average never touches `global_score`: one is
+absolute stars, the other is rank-derived out of ten. They are shown expanded rather than behind an
 "add" control, and never labelled optional: six rows of stars under the one that
 counts turned a quick rating into a chore, four does not. `hygiene` and `products`
 keep their columns in `ReviewRow`, so putting either back is one line in
@@ -158,11 +166,14 @@ flank the rate button, so the thumb lands on them without crossing the bar.
    list is already ordered, so a trophy stand restated the top three in a second
    visual language and pushed the real list below the fold. Rank is a number in a
    column, the same for #1 as for #12.
-9. **Profile.** Name, bio, `washroom_pref`, then one strip of three cells: rated,
-   following, followers. Rated carries the accent because it is the only one of the
-   three that scores anything; the other two are buttons that open `PeopleScreen`,
-   which is where finding and following people lives. Following is instant and
-   one-directional, no request, no accept, no pending state.
+9. **Profile.** Name, bio, `washroom_pref`, and the rated count in a tile in the
+   top right, on every profile. Following and followers are one quiet line under
+   the bio, and they are buttons that open `PeopleScreen`, which is where finding
+   and following people lives. The three were one equal strip once, which made
+   "how many people follow you" look like the same kind of fact as "how many
+   washrooms you have ranked". It isn't: one is the work, the other is an address
+   book. Following is instant and one-directional, no request, no accept, no
+   pending state.
 
    The body is tabbed, defaulting to **Recent activity**: your reviews newest first,
    each with its current rank and score. The second tab is **Bookmarked**. There is
@@ -185,8 +196,18 @@ Design rules that kept getting re-litigated, so they're written down:
   is recoverable.)
 - **Nothing repeats what the name already says.** The name contains the building and
   the floor, so there is no building tile and no "Floor 3" line beside it.
+- **One bathroom row: `BathroomTile`.** Rankings, search, Near me, bookmarks, the
+  profile's activity and the card inside a feed post are all the same component,
+  with optional rank / distance / detail-average slots. Six near-identical blocks
+  had drifted apart; a change to how a washroom looks now happens once.
+- **Every tile carries a bookmark**, and `Bathroom.bookmarked` is on the row so it
+  never has to be fetched per tile. A washroom outside your preference has no
+  controls at all, no bookmark and no rate, and no sentence explaining that, since
+  the type badge on the row already said it.
 - **Three score colours**, green / yellow / red, and nothing else competes with them.
-  Per-building colours are gone for the same reason.
+  Per-building colours are gone for the same reason. Accent *text* uses
+  `palette.periwinkleDeep`, not `periwinkle`: on the lilac washes the lighter one
+  was purple on purple. `periwinkle` is for fills.
 - **No em dashes anywhere in this repository.** Copy, comments, commit messages,
   fixtures, docs. `fullLocation()` joins with a middot; prose uses a comma, a colon
   or a full stop. A repo-wide search for U+2014 should come back empty, which is

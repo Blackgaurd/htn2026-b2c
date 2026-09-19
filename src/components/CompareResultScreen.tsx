@@ -61,7 +61,10 @@ export function CompareResultScreen({ result, onDone }: { result: SubmitReviewRe
             YOUR SCORE
           </p>
 
-          <div className="relative flex items-center justify-center" style={{ height: 100 }}>
+          {/* No "/10" hanging off it. The number is the score, the colour says
+              what it means, and the denominator was the only thing on this
+              screen nobody needed told twice. */}
+          <div className="flex items-center justify-center" style={{ height: 100 }}>
             <div
               style={{
                 fontSize: 84,
@@ -75,21 +78,6 @@ export function CompareResultScreen({ result, onDone }: { result: SubmitReviewRe
               }}
             >
               {review.score.toFixed(1)}
-            </div>
-            <div
-              style={{
-                position: "absolute",
-                right: 48,
-                bottom: 12,
-                fontSize: 22,
-                fontWeight: 600,
-                color: palette.faint,
-                transform: revealed ? "translateY(0)" : "translateY(8px)",
-                opacity: revealed ? 1 : 0,
-                transition: "all 0.4s ease 0.4s",
-              }}
-            >
-              /10
             </div>
           </div>
 
@@ -106,7 +94,7 @@ export function CompareResultScreen({ result, onDone }: { result: SubmitReviewRe
             </span>
             <span
               className="rounded-full px-3 py-1"
-              style={{ background: "#7B8CDE22", color: palette.periwinkle, fontSize: 13, fontWeight: 700 }}
+              style={{ background: "#7B8CDE22", color: palette.periwinkleDeep, fontSize: 13, fontWeight: 700 }}
             >
               #{rank} of {rankings.length}
             </span>
@@ -180,16 +168,19 @@ export function CompareResultScreen({ result, onDone }: { result: SubmitReviewRe
                   {entry.rank}
                 </div>
 
+                {/* Badge first, then the name: the same order as a tile
+                    everywhere else in the app. */}
                 <div className="min-w-0 flex-1">
-                  <div className="mb-1" style={{ fontSize: 13, fontWeight: 600, color: palette.charcoal, lineHeight: 1.35 }}>
+                  <div className="mb-1">
+                    <WashroomBadge type={entry.bathroom.washroom_type} />
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: palette.charcoal, lineHeight: 1.35 }}>
                     {locationOf(entry.bathroom)}
                   </div>
-                  <WashroomBadge type={entry.bathroom.washroom_type} />
                 </div>
 
-                <ScoreChip score={entry.score} />
-
-                {/* Five near-identical rows; this is the one you just added. */}
+                {/* Left of the score, not right: the score keeps the same x on
+                    every row whether or not this is the one you just added. */}
                 {isNew && (
                   <div
                     className="flex-shrink-0 rounded-full px-1.5 py-0.5"
@@ -204,6 +195,8 @@ export function CompareResultScreen({ result, onDone }: { result: SubmitReviewRe
                     NEW
                   </div>
                 )}
+
+                <ScoreChip score={entry.score} />
               </div>
             );
           })}

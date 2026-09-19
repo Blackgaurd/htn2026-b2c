@@ -1,29 +1,44 @@
 /**
- * One post in the feed: who rated what, and what they thought.
+ * One post in the feed: who rated what, and everything they said about it.
+ *
+ * A post now carries the whole review, the detail stars, the photos and the
+ * note, because a feed row that only showed a score made you open the washroom
+ * to find out what your friend actually thought, and the washroom page doesn't
+ * hold their review anyway. Nothing here is a link to a bigger version of
+ * itself: the card *is* the review. The only things that navigate are the
+ * person (to their profile) and the two compact actions in the header.
  *
  * This is the one surface that crosses the gender gate on purpose, you see a
- * friend's review of any washroom, which is the whole point of a feed. What keeps
- * that safe is the badge, which is never optional here. A post about a washroom
- * you don't use is read-only and says so.
+ * friend's review of any washroom, which is the whole point of a feed. What
+ * keeps that safe is the badge on the tile, which is never optional here. A post
+ * about a washroom you don't use simply has no buttons, and doesn't need a
+ * sentence explaining that the badge means what it says.
  */
 
+import type { ReactNode } from "react";
 import type { FeedEntry } from "../../shared/api";
-import { locationOf, palette, timeAgo, washroomMeta } from "../lib/display";
-import { Avatar, ScoreChip, WashroomBadge } from "./chrome";
+import { gradient, palette, timeAgo } from "../lib/display";
+import { Avatar, BathroomTile, BookmarkButton, PhotoStrip, ReviewDetails, ScoreChip } from "./chrome";
+import { PlusIcon } from "./icons";
 
 export function FeedCard({
   entry,
-  onOpenBathroom,
+  mine,
   onOpenProfile,
+  onToggleBookmark,
+  onRate,
 }: {
   entry: FeedEntry;
-  onOpenBathroom: () => void;
+  /** Your own score for this washroom, if you've rated it. */
+  mine: number | null;
   onOpenProfile: () => void;
+  onToggleBookmark: () => void;
+  onRate: () => void;
 }) {
   const { user, bathroom, review, can_use } = entry;
 
   return (
-    <div className="rounded-2xl p-4" style={{ background: "white", boxShadow: "0 1px 4px #0000000A" }}>
+    <div className="rounded-2xl p-4" style={{ background: "white", boxShadow: "0 6px 18px #292B451A" }}>
       <div className="mb-3 flex items-center gap-3">
         <button onClick={onOpenProfile} className="active:opacity-70">
           <Avatar user={user} />
@@ -36,38 +51,51 @@ export function FeedCard({
             @{user.username} · {timeAgo(review.created_at)}
           </div>
         </button>
+        {can_use && (
+          <div className="flex flex-shrink-0 items-center gap-1">
+            <BookmarkButton on={bathroom.bookmarked} onToggle={onToggleBookmark} size={32} circular />
+            <FeedAction label="Rate this bathroom" onClick={onRate} icon={<PlusIcon size={18} />} />
+          </div>
+        )}
         <ScoreChip score={review.score} />
       </div>
 
-      <button
-        onClick={onOpenBathroom}
-        disabled={!can_use}
-        className="w-full rounded-xl p-3 text-left"
-        style={{ background: palette.bg, cursor: can_use ? "pointer" : "default" }}
-      >
-        {/* Which washroom this is comes first, at full size. The feed is the one
-            place that shows every type, so it's the one place this can't be a
-            footnote under the name. */}
-        <div className="mb-1.5">
-          <WashroomBadge type={bathroom.washroom_type} size="md" />
-        </div>
-        <div style={{ fontSize: 13, fontWeight: 600, color: palette.charcoal, lineHeight: 1.35 }}>
-          {locationOf(bathroom)}
-        </div>
-      </button>
+      {/* The same tile every list uses, minus the tap: there's nowhere to go. */}
+      <BathroomTile bathroom={bathroom} mine={mine} canUse={false} showScores={false} raised />
 
-      {review.note && (
-        <p style={{ fontSize: 13, color: palette.muted, marginTop: 10, lineHeight: 1.5 }}>“{review.note}”</p>
-      )}
+      <div className="mt-3 flex flex-col gap-3">
+        <ReviewDetails review={review} type={bathroom.washroom_type} />
+        <PhotoStrip photos={review.photos} />
+        {review.note && (
+          <p style={{ fontSize: 13, color: palette.muted, lineHeight: 1.5 }}>“{review.note}”</p>
+        )}
+      </div>
 
-      {!can_use && (
-        <p
-          className="mt-2 px-3 py-2"
-          style={{ fontSize: 11, fontWeight: 600, color: palette.faint, background: palette.bg, borderRadius: 10 }}
-        >
-          {washroomMeta[bathroom.washroom_type].label}. Not one you use, so you can't rate or save it.
-        </p>
-      )}
     </div>
+  );
+}
+
+function FeedAction({
+  label,
+  onClick,
+  icon,
+}: {
+  label: string;
+  onClick: () => void;
+  icon: ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className="flex h-7 w-7 items-center justify-center rounded-full active:opacity-70"
+      style={{
+        background: gradient.brand,
+        border: "none",
+      }}
+    >
+      {icon}
+    </button>
   );
 }

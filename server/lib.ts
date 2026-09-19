@@ -24,19 +24,22 @@ import type { InferSelectModel } from "drizzle-orm";
 import { and, eq } from "drizzle-orm";
 import {
   BUCKET_ORDER,
+  DETAIL_KEYS,
   canUse,
   round1,
   scoreForPosition,
   type Bathroom,
   type BathroomRow,
+  type DetailAverages,
   type RankedBathroom,
   type Review,
+  type ReviewDetailKey,
   type ReviewRow,
   type User,
   type UserSummary,
 } from "../shared/api";
 import { db } from "./db";
-import { bathrooms, follows, reviews, users } from "./schema";
+import { bathrooms, bookmarks, follows, reviews, users } from "./schema";
 
 export type UserRow = InferSelectModel<typeof users>;
 
@@ -198,7 +201,11 @@ export const withScore = (review: ReviewRow, score: number): Review => ({ ...rev
 
 // ─── Aggregates ───────────────────────────────────────────────────────────────
 
-export type Aggregate = { global_score: number; review_count: number };
+export type Aggregate = {
+  global_score: number;
+  review_count: number;
+  detail_averages: DetailAverages;
+};
 
 /**
  * The global score: the mean of every user's *personal* score for a bathroom,
@@ -209,8 +216,10 @@ export type Aggregate = { global_score: number; review_count: number };
  * per call; at demo scale that's cheaper than being clever about it.
  */
 export function aggregates(): Map<number, Aggregate> {
+  const all = db.select().from(reviews).all();
+
   const byUser = new Map<number, ReviewRow[]>();
-  for (const row of db.select().from(reviews).all()) {
+  for (const row of all) {
     const list = byUser.get(row.user_id);
     if (list) list.push(row);
     else byUser.set(row.user_id, [row]);
@@ -226,21 +235,84 @@ export function aggregates(): Map<number, Aggregate> {
     }
   }
 
+  const details = detailAverages(all);
+
   const out = new Map<number, Aggregate>();
   for (const [bathroom_id, { sum, count }] of totals) {
-    out.set(bathroom_id, { global_score: round1(sum / count), review_count: count });
+    out.set(bathroom_id, {
+      global_score: round1(sum / count),
+      review_count: count,
+      detail_averages: details.get(bathroom_id) ?? {},
+    });
   }
   return out;
 }
 
-/** The stored row plus the aggregates every list needs. `null` until reviewed. */
-export function toBathroom(row: BathroomRow, agg: Map<number, Aggregate>): Bathroom {
+/**
+ * The mean of each detail rating per bathroom, over everyone's reviews.
+ *
+ * Averaged only with each other. A detail never reaches `global_score`: that one
+ * is rank-derived on a 0–10 scale and these are absolute stars, so mixing them
+ * would be two scoring systems arguing, which is the rule the whole app is built
+ * around.
+ */
+function detailAverages(rows: ReviewRow[]): Map<number, DetailAverages> {
+  const sums = new Map<number, Map<ReviewDetailKey, { sum: number; count: number }>>();
+
+  for (const review of rows) {
+    const perRoom = sums.get(review.bathroom_id) ?? new Map();
+    for (const key of DETAIL_KEYS) {
+      const value = review[key];
+      if (value == null) continue;
+      const cell = perRoom.get(key) ?? { sum: 0, count: 0 };
+      cell.sum += value;
+      cell.count += 1;
+      perRoom.set(key, cell);
+    }
+    sums.set(review.bathroom_id, perRoom);
+  }
+
+  const out = new Map<number, DetailAverages>();
+  for (const [bathroom_id, perRoom] of sums) {
+    const averages: DetailAverages = {};
+    for (const [key, { sum, count }] of perRoom) averages[key] = round1(sum / count);
+    out.set(bathroom_id, averages);
+  }
+  return out;
+}
+
+/**
+ * The stored row plus the aggregates every list needs. `null` until reviewed.
+ *
+ * `bookmarked` is the *viewer's*, always: every tile in the app carries a
+ * bookmark control, including tiles that arrived by way of somebody else's
+ * review. Pass `bookmarkedIds(viewer.id)` once per handler rather than per row.
+ */
+export function toBathroom(
+  row: BathroomRow,
+  agg: Map<number, Aggregate>,
+  bookmarked: ReadonlySet<number> = new Set(),
+): Bathroom {
   const found = agg.get(row.id);
   return {
     ...row,
     global_score: found?.global_score ?? null,
     review_count: found?.review_count ?? 0,
+    bookmarked: bookmarked.has(row.id),
+    detail_averages: found?.detail_averages ?? {},
   };
+}
+
+/** Which bathrooms this user has bookmarked, as a set for `toBathroom`. */
+export function bookmarkedIds(userId: number): Set<number> {
+  return new Set(
+    db
+      .select({ id: bookmarks.bathroom_id })
+      .from(bookmarks)
+      .where(eq(bookmarks.user_id, userId))
+      .all()
+      .map(r => r.id),
+  );
 }
 
 export function bathroomsById(): Map<number, BathroomRow> {
@@ -248,14 +320,18 @@ export function bathroomsById(): Map<number, BathroomRow> {
 }
 
 /** A user's full ranked list, best first. Not gender-filtered: you reviewed it. */
-export function rankingsFor(userId: number, agg = aggregates()): RankedBathroom[] {
+export function rankingsFor(
+  userId: number,
+  agg = aggregates(),
+  bookmarked: ReadonlySet<number> = new Set(),
+): RankedBathroom[] {
   const rooms = bathroomsById();
   return scoredReviews(userId).flatMap(({ review, score, rank }) => {
     const room = rooms.get(review.bathroom_id);
     if (!room) return []; // catalogue row retired out from under a review
     return [
       {
-        bathroom: toBathroom(room, agg),
+        bathroom: toBathroom(room, agg, bookmarked),
         review_id: review.id,
         score,
         rank,

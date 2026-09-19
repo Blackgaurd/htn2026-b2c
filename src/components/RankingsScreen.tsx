@@ -10,15 +10,16 @@
  * score per bathroom means the order is the order.
  */
 
-import { useState } from "react";
-import type { Bathroom, RankedBathroom } from "../../shared/api";
+import type { Bathroom } from "../../shared/api";
 import { listMyRankings } from "../api";
-import { locationOf, palette } from "../lib/display";
+import { palette } from "../lib/display";
 import { useAsync } from "../lib/useAsync";
-import { EmptyState, LoadingScreen, Notice, ScoreChip, WashroomBadge } from "./chrome";
+import { useBookmark } from "../lib/useBookmark";
+import { BathroomTile, EmptyState, LoadingScreen, Notice } from "./chrome";
 
 export function RankingsScreen({ onOpen }: { onOpen: (bathroom: Bathroom) => void }) {
   const rankings = useAsync(() => listMyRankings(), []);
+  const bookmark = useBookmark(rankings.reload);
 
   if (rankings.loading && !rankings.data) return <LoadingScreen />;
 
@@ -32,6 +33,7 @@ export function RankingsScreen({ onOpen }: { onOpen: (bathroom: Bathroom) => voi
 
       <div className="phone-scroll flex-1 overflow-y-auto px-5 pb-4">
         {rankings.error && <Notice tone="error">{rankings.error}</Notice>}
+        {bookmark.error && <Notice tone="error">{bookmark.error}</Notice>}
 
         {ranked.length === 0 ? (
           <EmptyState
@@ -39,41 +41,20 @@ export function RankingsScreen({ onOpen }: { onOpen: (bathroom: Bathroom) => voi
             body="Rate your first bathroom and it'll land here. After that, every new one gets compared against this list."
           />
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2.5">
             {ranked.map(entry => (
-              <RankedRow key={entry.review_id} entry={entry} onPress={() => onOpen(entry.bathroom)} />
+              <BathroomTile
+                key={entry.review_id}
+                bathroom={entry.bathroom}
+                rank={entry.rank}
+                mine={entry.score}
+                onPress={() => onOpen(entry.bathroom)}
+                onToggleBookmark={() => bookmark.toggle(entry.bathroom)}
+              />
             ))}
           </div>
         )}
       </div>
     </div>
-  );
-}
-
-function RankedRow({ entry, onPress }: { entry: RankedBathroom; onPress: () => void }) {
-  return (
-    <button
-      onClick={onPress}
-      className="flex items-start gap-3 rounded-2xl px-4 py-3.5 text-left active:scale-[0.99]"
-      style={{ background: "white", boxShadow: "0 1px 4px #0000000A" }}
-    >
-      <div
-        className="flex flex-shrink-0 items-center justify-center"
-        style={{ width: 26, fontSize: 14, fontWeight: 700, color: palette.faint, paddingTop: 2 }}
-      >
-        {entry.rank}
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <div className="mb-1">
-          <WashroomBadge type={entry.bathroom.washroom_type} />
-        </div>
-        <div style={{ fontSize: 13, fontWeight: 600, color: palette.charcoal, lineHeight: 1.35 }}>
-          {locationOf(entry.bathroom)}
-        </div>
-      </div>
-
-      <ScoreChip score={entry.score} />
-    </button>
   );
 }

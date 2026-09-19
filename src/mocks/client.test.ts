@@ -35,6 +35,28 @@ test("the gate lets universal through for everyone and never crosses the aisle",
   expect(canUse("universal", "female")).toBe(false);
 });
 
+test("registration rejects malformed email and usernames with spaces", async () => {
+  await expect(
+    mockClient.register({
+      username: "has space",
+      display_name: "Space Name",
+      email: "space@uwaterloo.ca",
+      password: "pupi",
+      washroom_pref: "universal",
+    }),
+  ).rejects.toThrow("username cannot contain spaces");
+
+  await expect(
+    mockClient.register({
+      username: "validname",
+      display_name: "Valid Name",
+      email: "not-an-email",
+      password: "pupi",
+      washroom_pref: "universal",
+    }),
+  ).rejects.toThrow("enter a valid email address");
+});
+
 test("browsing never returns a washroom the user doesn't use", async () => {
   const listed = await mockClient.listBathrooms();
   expect(listed.length).toBeGreaterThan(0);

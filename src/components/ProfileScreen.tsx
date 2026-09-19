@@ -13,19 +13,18 @@
  * on every row does that work.
  */
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { Bathroom, Profile, ProfileActivity } from "../../shared/api";
-import { getProfile, listBookmarks, logout, setBookmark, setFollow, updateProfile } from "../api";
-import { gradient, initials, locationOf, palette, timeAgo } from "../lib/display";
+import { getProfile, listBookmarks, listMyRankings, logout, setFollow, updateProfile } from "../api";
+import { gradient, initials, palette, timeAgo } from "../lib/display";
 import { useAsync } from "../lib/useAsync";
+import { useBookmark } from "../lib/useBookmark";
 import {
   BackButton,
-  BathroomRow,
-  BookmarkButton,
+  BathroomTile,
   EmptyState,
   LoadingScreen,
   Notice,
-  ScoreChip,
   Segmented,
   WashroomBadge,
 } from "./chrome";
@@ -57,6 +56,17 @@ export function ProfileScreen({
   const bookmarks = useAsync(
     () => (userId === undefined ? listBookmarks() : Promise.resolve([])),
     [userId],
+  );
+  const bookmark = useBookmark(bookmarks.reload);
+  // Your own score for a bookmarked washroom. The bookmark list is a catalogue
+  // list, so the number has to come from your rankings.
+  const rankings = useAsync(
+    () => (userId === undefined ? listMyRankings() : Promise.resolve([])),
+    [userId],
+  );
+  const myScores = useMemo(
+    () => new Map((rankings.data ?? []).map(entry => [entry.bathroom.id, entry.score])),
+    [rankings.data],
   );
 
   if (profile.loading && !profile.data) return <LoadingScreen />;
@@ -93,7 +103,9 @@ export function ProfileScreen({
           </div>
         )}
 
-        <div className="flex items-center gap-4">
+        {/* Top right, out of the row of counts: what this person has actually
+            done, on every profile, in the same place every time. */}
+        <div className="flex items-start gap-3">
           <div
             className="flex flex-shrink-0 items-center justify-center rounded-full"
             style={{
@@ -116,6 +128,18 @@ export function ProfileScreen({
               <WashroomBadge type={data.user.washroom_pref} size="md" />
             </div>
           </div>
+
+          <div
+            className="flex flex-shrink-0 flex-col items-center justify-center px-4 py-3"
+            style={{ minWidth: 78, minHeight: 76, borderRadius: 16, background: "white", boxShadow: "0 2px 8px #00000012" }}
+          >
+            <span className="tabular-nums" style={{ fontSize: 22, fontWeight: 800, color: palette.charcoal, lineHeight: 1 }}>
+              {data.reviewed_count}
+            </span>
+            <span style={{ fontSize: 9, fontWeight: 700, color: palette.faint, marginTop: 4, letterSpacing: "0.06em" }}>
+              RATED
+            </span>
+          </div>
         </div>
 
         {(data.user.bio || isMe) && (
@@ -137,7 +161,7 @@ export function ProfileScreen({
                   <button
                     onClick={() => setEditingBio(true)}
                     className="ml-2 active:opacity-70"
-                    style={{ fontSize: 12, fontWeight: 600, color: palette.periwinkle }}
+                    style={{ fontSize: 12, fontWeight: 600, color: palette.periwinkleDeep }}
                   >
                     Edit
                   </button>
@@ -146,7 +170,7 @@ export function ProfileScreen({
             ) : (
               <button
                 onClick={() => setEditingBio(true)}
-                style={{ fontSize: 13, fontWeight: 600, color: palette.periwinkle }}
+                style={{ fontSize: 13, fontWeight: 600, color: palette.periwinkleDeep }}
               >
                 + Add a bio
               </button>
@@ -155,36 +179,14 @@ export function ProfileScreen({
         )}
 
         {/*
-          One strip, three equal cells, no gaps to leave standing empty. Rated is
-          the only one that is a score of anything, so it takes the colour and the
-          other two stay quiet.
+          Following and followers are one quiet line. They were three big cells
+          with Rated, which made "how many people follow you" look like the same
+          kind of fact as "how many washrooms you have ranked". It isn't: one is
+          the work, the other is an address book.
         */}
-        <div
-          className="mt-4 flex overflow-hidden"
-          style={{ borderRadius: 18, background: "white", boxShadow: "0 1px 5px #0000000D" }}
-        >
-          <div
-            className="flex flex-1 flex-col items-center justify-center py-3"
-            style={{ background: gradient.primary }}
-          >
-            <span className="tabular-nums" style={{ fontSize: 24, fontWeight: 800, color: "white", lineHeight: 1 }}>
-              {data.reviewed_count}
-            </span>
-            <span style={{ fontSize: 10, fontWeight: 700, color: "#ffffffd9", marginTop: 5, letterSpacing: "0.06em" }}>
-              RATED
-            </span>
-          </div>
-          <StatCell
-            value={data.following_count}
-            label="FOLLOWING"
-            onPress={isMe ? onFindPeople : undefined}
-          />
-          <StatCell
-            value={data.followers_count}
-            label="FOLLOWERS"
-            divided
-            onPress={isMe ? onFindPeople : undefined}
-          />
+        <div className="mt-4 flex items-center justify-center gap-6">
+          <CountLink value={data.following_count} label="Following" onPress={isMe ? onFindPeople : undefined} />
+          <CountLink value={data.followers_count} label="Followers" onPress={isMe ? onFindPeople : undefined} />
         </div>
 
         {!isMe && (
@@ -233,18 +235,13 @@ export function ProfileScreen({
           ) : (
             <div className="flex flex-col gap-2.5">
               {saved.map(bathroom => (
-                <div key={bathroom.id} className="flex items-center gap-2">
-                  <div className="min-w-0 flex-1">
-                    <BathroomRow bathroom={bathroom} onPress={() => onOpenBathroom(bathroom)} />
-                  </div>
-                  <BookmarkButton
-                    on
-                    onToggle={async () => {
-                      await setBookmark(bathroom.id, false);
-                      bookmarks.reload();
-                    }}
-                  />
-                </div>
+                <BathroomTile
+                  key={bathroom.id}
+                  bathroom={bathroom}
+                  mine={myScores.get(bathroom.id) ?? null}
+                  onPress={() => onOpenBathroom(bathroom)}
+                  onToggleBookmark={() => bookmark.toggle(bathroom)}
+                />
               ))}
             </div>
           )
@@ -260,7 +257,12 @@ export function ProfileScreen({
         ) : (
           <div className="flex flex-col gap-2.5">
             {data.recent.map(entry => (
-              <ActivityRow key={entry.review.id} entry={entry} onPress={() => onOpenBathroom(entry.bathroom)} />
+              <ActivityRow
+                key={entry.review.id}
+                entry={entry}
+                onPress={() => onOpenBathroom(entry.bathroom)}
+                onToggleBookmark={() => bookmark.toggle(entry.bathroom)}
+              />
             ))}
           </div>
         )}
@@ -288,34 +290,33 @@ export function ProfileScreen({
  * Rank and time sit on one quiet line under the name; the score keeps the right
  * edge to itself so a column of these stays scannable.
  */
-function ActivityRow({ entry, onPress }: { entry: ProfileActivity; onPress: () => void }) {
+function ActivityRow({
+  entry,
+  onPress,
+  onToggleBookmark,
+}: {
+  entry: ProfileActivity;
+  onPress: () => void;
+  onToggleBookmark: () => void;
+}) {
   const when = timeAgo(entry.review.created_at);
 
   return (
-    <button
-      onClick={onPress}
-      className="flex w-full items-start gap-3 px-4 py-3.5 text-left active:scale-[0.99]"
-      style={{ background: "white", borderRadius: 16, boxShadow: "0 1px 4px #0000000A" }}
-    >
-      <div className="min-w-0 flex-1">
-        <div className="mb-1">
-          <WashroomBadge type={entry.bathroom.washroom_type} />
-        </div>
-        <div style={{ fontSize: 14, fontWeight: 600, color: palette.charcoal, lineHeight: 1.35 }}>
-          {locationOf(entry.bathroom)}
-        </div>
-        <div className="mt-1" style={{ fontSize: 11.5, fontWeight: 500, color: palette.faint }}>
-          #{entry.rank}
-          {when && ` · ${when}`}
-        </div>
-        {entry.review.note && (
-          <p className="mt-1.5" style={{ fontSize: 12.5, color: palette.muted, lineHeight: 1.45 }}>
+    <BathroomTile
+      bathroom={entry.bathroom}
+      rank={entry.rank}
+      mine={entry.review.score}
+      meta={when || undefined}
+      onPress={onPress}
+      onToggleBookmark={onToggleBookmark}
+      footer={
+        entry.review.note ? (
+          <p className="mt-2" style={{ fontSize: 12.5, color: palette.muted, lineHeight: 1.45 }}>
             {entry.review.note}
           </p>
-        )}
-      </div>
-      <ScoreChip score={entry.review.score} />
-    </button>
+        ) : null
+      }
+    />
   );
 }
 
@@ -354,7 +355,7 @@ function BioEditor({
       <div className="mt-2 flex items-center gap-3">
         <button
           onClick={() => onSave(value.trim())}
-          style={{ fontSize: 13, fontWeight: 700, color: palette.periwinkle }}
+          style={{ fontSize: 13, fontWeight: 700, color: palette.periwinkleDeep }}
         >
           Save
         </button>
@@ -369,30 +370,23 @@ function BioEditor({
   );
 }
 
-function StatCell({
+/** A number you can tap. Small on purpose, see the note by the counts. */
+function CountLink({
   value,
   label,
-  divided,
   onPress,
 }: {
   value: number;
   label: string;
-  divided?: boolean;
   onPress?: () => void;
 }) {
   const Tag = onPress ? "button" : "div";
   return (
-    <Tag
-      onClick={onPress}
-      className="flex flex-1 flex-col items-center justify-center py-3"
-      style={{ borderLeft: divided ? `1px solid ${palette.border}` : "none" }}
-    >
-      <span className="tabular-nums" style={{ fontSize: 24, fontWeight: 800, color: palette.charcoal, lineHeight: 1 }}>
+    <Tag onClick={onPress} className="flex items-baseline gap-1.5 active:opacity-70">
+      <span className="tabular-nums" style={{ fontSize: 15, fontWeight: 800, color: palette.charcoal }}>
         {value}
       </span>
-      <span style={{ fontSize: 10, fontWeight: 700, color: palette.faint, marginTop: 5, letterSpacing: "0.06em" }}>
-        {label}
-      </span>
+      <span style={{ fontSize: 12, fontWeight: 600, color: palette.muted }}>{label}</span>
     </Tag>
   );
 }

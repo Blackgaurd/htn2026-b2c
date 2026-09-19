@@ -30,13 +30,16 @@ import type {
   Profile,
   ProfileActivity,
   RankedBathroom,
+  DetailAverages,
   Review,
+  ReviewDetailKey,
   ReviewRow,
   User,
   UserSummary,
 } from "../../shared/api";
 import {
   BUCKET_ORDER,
+  DETAIL_KEYS,
   MAX_REVIEW_PHOTOS,
   PROFILE_ACTIVITY_LIMIT,
   bucketForRating,
@@ -46,6 +49,7 @@ import {
   scoreForPosition,
 } from "../../shared/api";
 import type { DemoUser } from "../../shared/demo";
+import { hasWhitespace, isValidEmail, usernameForStorage } from "../../shared/auth";
 import { readUserId, writeUserId } from "../session";
 import { DEFAULT_USER_ID, freshState, type MockState } from "./data";
 
@@ -137,8 +141,14 @@ function scoredReviews(userId: number): ScoredReview[] {
   return out;
 }
 
+type Aggregate = {
+  global_score: number;
+  review_count: number;
+  detail_averages: DetailAverages;
+};
+
 /** Every bathroom's global score: the mean of each reviewer's personal score. */
-function aggregates(): Map<number, { global_score: number; review_count: number }> {
+function aggregates(): Map<number, Aggregate> {
   const collected = new Map<number, number[]>();
 
   for (const user of state.users) {
@@ -149,32 +159,81 @@ function aggregates(): Map<number, { global_score: number; review_count: number 
     }
   }
 
-  const out = new Map<number, { global_score: number; review_count: number }>();
+  const details = detailAverages();
+
+  const out = new Map<number, Aggregate>();
   for (const [bathroomId, scores] of collected) {
     const mean = scores.reduce((sum, s) => sum + s, 0) / scores.length;
-    out.set(bathroomId, { global_score: round1(mean), review_count: scores.length });
+    out.set(bathroomId, {
+      global_score: round1(mean),
+      review_count: scores.length,
+      detail_averages: details.get(bathroomId) ?? {},
+    });
   }
   return out;
 }
 
-function toBathroom(
-  row: BathroomRow,
-  agg: Map<number, { global_score: number; review_count: number }>,
-): Bathroom {
+/**
+ * The mean of each detail rating per bathroom, everyone's reviews together.
+ *
+ * Separate from the score on purpose, and it stays that way: these are averaged
+ * only with each other, never with `global_score`, which is rank-derived and
+ * would be a different scale even if mixing them were a good idea.
+ */
+function detailAverages(): Map<number, DetailAverages> {
+  const sums = new Map<number, Map<ReviewDetailKey, { sum: number; count: number }>>();
+
+  for (const review of state.reviews) {
+    const perRoom = sums.get(review.bathroom_id) ?? new Map();
+    for (const key of DETAIL_KEYS) {
+      const value = review[key];
+      if (value == null) continue;
+      const cell = perRoom.get(key) ?? { sum: 0, count: 0 };
+      cell.sum += value;
+      cell.count += 1;
+      perRoom.set(key, cell);
+    }
+    sums.set(review.bathroom_id, perRoom);
+  }
+
+  const out = new Map<number, DetailAverages>();
+  for (const [bathroomId, perRoom] of sums) {
+    const averages: DetailAverages = {};
+    for (const [key, { sum, count }] of perRoom) averages[key] = round1(sum / count);
+    out.set(bathroomId, averages);
+  }
+  return out;
+}
+
+function toBathroom(row: BathroomRow, agg: Map<number, Aggregate>, bookmarked = new Set<number>()): Bathroom {
   const found = agg.get(row.id);
   return {
     ...row,
     global_score: found?.global_score ?? null,
     review_count: found?.review_count ?? 0,
+    bookmarked: bookmarked.has(row.id),
+    detail_averages: found?.detail_averages ?? {},
   };
+}
+
+/**
+ * The *viewer's* bookmarks, as a set, because every bathroom tile carries a
+ * bookmark control. Whose list a row came from doesn't change whose bookmark it
+ * is: a friend's review of a washroom you saved still shows it as saved.
+ */
+function bookmarkedIds(): Set<number> {
+  const id = readUserId();
+  if (id === null) return new Set();
+  return new Set(state.bookmarks.filter(b => b.user_id === id).map(b => b.bathroom_id));
 }
 
 const withScore = (review: ReviewRow, score: number): Review => ({ ...copy(review), score });
 
 function rankingsFor(userId: number): RankedBathroom[] {
   const agg = aggregates();
+  const saved = bookmarkedIds();
   return scoredReviews(userId).map(({ review, score, rank }) => ({
-    bathroom: toBathroom(bathroomRow(review.bathroom_id), agg),
+    bathroom: toBathroom(bathroomRow(review.bathroom_id), agg, saved),
     review_id: review.id,
     score,
     rank,
@@ -192,10 +251,11 @@ function rankingsFor(userId: number): RankedBathroom[] {
  */
 function activityFor(userId: number): ProfileActivity[] {
   const agg = aggregates();
+  const saved = bookmarkedIds();
   return scoredReviews(userId)
     .map(({ review, score, rank }) => ({
       review: { ...copy(review), score },
-      bathroom: toBathroom(bathroomRow(review.bathroom_id), agg),
+      bathroom: toBathroom(bathroomRow(review.bathroom_id), agg, saved),
       rank,
     }))
     .sort((a, b) => b.review.created_at.localeCompare(a.review.created_at) || b.review.id - a.review.id)
@@ -211,10 +271,12 @@ export const mockClient: ApiClient = {
   // ── Session ────────────────────────────────────────────────────────────────
 
   async register(body) {
-    const username = body.username.trim().replace(/^@/, "");
+    const username = usernameForStorage(body.username);
     const email = body.email.trim().toLowerCase();
     if (!username) throw new Error("username is required");
     if (!email) throw new Error("email is required");
+    if (hasWhitespace(body.username)) throw new Error("username cannot contain spaces");
+    if (!isValidEmail(email)) throw new Error("enter a valid email address");
     if (state.users.some(u => u.username.toLowerCase() === username.toLowerCase())) {
       throw new Error(`@${username} is taken`);
     }
@@ -286,10 +348,11 @@ export const mockClient: ApiClient = {
   async listBathrooms() {
     const user = currentUserRow();
     const agg = aggregates();
+    const saved = bookmarkedIds();
     return state.bathrooms
       .filter(row => canUse(user.washroom_pref, row.washroom_type))
       .sort(byLocation)
-      .map(row => toBathroom(row, agg));
+      .map(row => toBathroom(row, agg, saved));
   },
 
   async getBathroom(id) {
@@ -316,7 +379,7 @@ export const mockClient: ApiClient = {
       .sort((a, b) => b.score - a.score);
 
     const detail: BathroomDetail = {
-      ...toBathroom(row, aggregates()),
+      ...toBathroom(row, aggregates(), bookmarkedIds()),
       my_review: mine ? withScore(mine.review, mine.score) : null,
       friend_reviews: friendReviews,
       bookmarked: state.bookmarks.some(b => b.user_id === user.id && b.bathroom_id === id),
@@ -413,12 +476,13 @@ export const mockClient: ApiClient = {
   async listBookmarks() {
     const user = currentUserRow();
     const agg = aggregates();
+    const saved = bookmarkedIds();
     return state.bookmarks
       .filter(b => b.user_id === user.id)
       .map(b => bathroomRow(b.bathroom_id))
       .filter(row => canUse(user.washroom_pref, row.washroom_type))
       .sort(byLocation)
-      .map(row => toBathroom(row, agg));
+      .map(row => toBathroom(row, agg, saved));
   },
 
   async setBookmark(bathroomId, on) {
@@ -436,6 +500,7 @@ export const mockClient: ApiClient = {
   async listWantToGo() {
     const user = currentUserRow();
     const agg = aggregates();
+    const saved = bookmarkedIds();
     const reviewed = new Set(
       state.reviews.filter(r => r.user_id === user.id).map(r => r.bathroom_id),
     );
@@ -445,7 +510,7 @@ export const mockClient: ApiClient = {
       .map(w => bathroomRow(w.bathroom_id))
       .filter(row => canUse(user.washroom_pref, row.washroom_type))
       .sort(byLocation)
-      .map(row => toBathroom(row, agg));
+      .map(row => toBathroom(row, agg, saved));
   },
 
   async setWantToGo(bathroomId, on) {
@@ -469,6 +534,7 @@ export const mockClient: ApiClient = {
   async listFeed() {
     const user = currentUserRow();
     const agg = aggregates();
+    const saved = bookmarkedIds();
 
     const entries: FeedEntry[] = state.follows
       .filter(f => f.follower_id === user.id)
@@ -476,7 +542,7 @@ export const mockClient: ApiClient = {
         scoredReviews(f.followee_id).map(({ review, score }) => ({
           review: withScore(review, score),
           user: summarize(userRow(f.followee_id), user.id),
-          bathroom: toBathroom(bathroomRow(review.bathroom_id), agg),
+          bathroom: toBathroom(bathroomRow(review.bathroom_id), agg, saved),
           can_use: canUse(user.washroom_pref, bathroomRow(review.bathroom_id).washroom_type),
         })),
       );

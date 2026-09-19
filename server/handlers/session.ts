@@ -18,6 +18,7 @@ import type {
   User,
   WashroomPref,
 } from "../../shared/api";
+import { hasWhitespace, isValidEmail, usernameForStorage } from "../../shared/auth";
 import { db } from "../db";
 import { HttpError, now, publicUser, readBody, requireUser, type UserRow } from "../lib";
 import { users } from "../schema";
@@ -31,10 +32,13 @@ const PREFS: readonly WashroomPref[] = ["female", "male", "universal"] as const;
 export async function register(req: Request): Promise<User> {
   const body = await readBody<RegisterBody>(req);
 
-  const username = (body.username ?? "").trim().replace(/^@/, "");
+  const rawUsername = body.username ?? "";
+  const username = usernameForStorage(rawUsername);
   const email = (body.email ?? "").trim().toLowerCase();
   if (!username) throw new HttpError(400, "username is required");
   if (!email) throw new HttpError(400, "email is required");
+  if (hasWhitespace(rawUsername)) throw new HttpError(400, "username cannot contain spaces");
+  if (!isValidEmail(email)) throw new HttpError(400, "enter a valid email address");
   if (!PREFS.includes(body.washroom_pref)) {
     throw new HttpError(400, "pick a washroom preference");
   }

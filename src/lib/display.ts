@@ -20,6 +20,15 @@ export const palette = {
   faint: "#ADADBE",
   border: "#ECEAE4",
   periwinkle: "#7B8CDE",
+  /**
+   * The accent, dark enough to read as text.
+   *
+   * `periwinkle` is a fill colour: on the lilac washes behind the profile, the
+   * rating header and the result screen it was purple on purple, about 2.9:1,
+   * and the links set in it went soft. Anything that is *words* in the accent
+   * uses this instead; anything that is a filled shape keeps `periwinkle`.
+   */
+  periwinkleDeep: "#4A57A6",
   periwinkleLight: "#EEF0FB",
   periwinkleMid: "#C5CBEF",
   violet: "#9B78D4",

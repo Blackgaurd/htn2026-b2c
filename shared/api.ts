@@ -52,6 +52,19 @@ export type ReviewDetailKey =
 
 export type ReviewDetails = Partial<Record<ReviewDetailKey, Rating>>;
 
+/** Every detail key that exists, in the order they're printed. */
+export const DETAIL_KEYS: readonly ReviewDetailKey[] = [
+  "cleanliness",
+  "accessibility",
+  "smell",
+  "hygiene",
+  "privacy",
+  "products",
+] as const;
+
+/** The same keys, averaged across everyone's reviews. Not whole stars any more. */
+export type DetailAverages = Partial<Record<ReviewDetailKey, number>>;
+
 /**
  * Which details a review asks about.
  *
@@ -111,10 +124,15 @@ export const BUCKET_BANDS: Record<Bucket, readonly [number, number]> = {
 /** Buckets from best to worst, the order a user's full ranking is assembled in. */
 export const BUCKET_ORDER: readonly Bucket[] = ["loved", "fine", "never"] as const;
 
+/**
+ * One word each, and the same three words the score colours already mean.
+ * The rating screen asks for a band directly now, so these label the buttons
+ * you tap rather than describing a star you picked.
+ */
 export const BUCKET_LABELS: Record<Bucket, string> = {
-  loved: "Loved it",
-  fine: "It was fine",
-  never: "Never again",
+  loved: "Good",
+  fine: "OK",
+  never: "Bad",
 };
 
 /**
@@ -127,6 +145,17 @@ export function bucketForRating(rating: Rating): Bucket {
   if (rating >= 4) return "loved";
   if (rating === 3) return "fine";
   return "never";
+}
+
+/**
+ * The inverse, for the three-button verdict the rating screen now asks for.
+ *
+ * Good / OK / Bad *is* the band, so the screen has a bucket before it has a
+ * rating. `rating` stays the stored input, and `bucketForRating(ratingForBucket(b))
+ * === b`, so nothing downstream has to know which control produced it.
+ */
+export function ratingForBucket(bucket: Bucket): Rating {
+  return bucket === "loved" ? 5 : bucket === "fine" ? 3 : 1;
 }
 
 /**
@@ -170,6 +199,18 @@ export type Bathroom = BathroomRow & {
   /** Mean of every user's personal score. `null` until somebody reviews it. */
   global_score: number | null;
   review_count: number;
+  /**
+   * Whether the signed-in user has bookmarked it. On the row itself because every
+   * bathroom tile in the app carries a bookmark control, and a tile that had to
+   * fetch its own state would be a list of requests.
+   */
+  bookmarked: boolean;
+  /**
+   * Mean of the detail stars everyone has given, per key, 1–5, absent when nobody
+   * has rated that aspect. Still notes about the room: these are *never* folded
+   * into `global_score`, they're printed beside it.
+   */
+  detail_averages: DetailAverages;
 };
 
 export type User = {
@@ -255,7 +296,6 @@ export type FriendReview = {
 export type BathroomDetail = Bathroom & {
   my_review: Review | null;
   friend_reviews: FriendReview[];
-  bookmarked: boolean;
   want_to_go: boolean;
 };
 
@@ -321,7 +361,12 @@ export type LoginBody = { email: string; password: string };
 /** Only the fields a user can change about themselves. */
 export type UpdateProfileBody = { bio: string | null };
 
-export const MAX_REVIEW_PHOTOS = 2;
+/**
+ * How many photos one review may carry. Six rather than two: a washroom is a
+ * room, and two pictures couldn't cover the stalls, the sinks and the state of
+ * the floor at once. The grid wraps, so more of them costs height, not layout.
+ */
+export const MAX_REVIEW_PHOTOS = 6;
 
 export type SubmitReviewBody = {
   bathroom_id: number;

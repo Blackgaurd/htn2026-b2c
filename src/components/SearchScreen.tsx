@@ -20,16 +20,25 @@ import { listBathrooms, listMyRankings } from "../api";
 import { locationOf, palette } from "../lib/display";
 import { clearRecents, pushRecent, readRecents } from "../lib/recents";
 import { useAsync } from "../lib/useAsync";
-import { BackButton, Chip, LoadingScreen, Notice, ScorePair, SearchField, WashroomBadge } from "./chrome";
+import { useBookmark } from "../lib/useBookmark";
+import { BathroomTile, BackButton, Chip, LoadingScreen, Notice, SearchField } from "./chrome";
 
 export function SearchScreen({
   title,
   onBack,
   onPick,
+  picking,
 }: {
   title: string;
   onBack: () => void;
   onPick: (bathroom: Bathroom) => void;
+  /**
+   * True when the screen is choosing a washroom to review rather than one to
+   * open. The picker stays a list of names: campus detail averages and a
+   * bookmark are answers to "which one is good", and you already know which one
+   * you just used.
+   */
+  picking?: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [floor, setFloor] = useState<number | null>(null);
@@ -37,6 +46,7 @@ export function SearchScreen({
 
   const bathrooms = useAsync(() => listBathrooms(), []);
   const rankings = useAsync(() => listMyRankings(), []);
+  const bookmark = useBookmark(bathrooms.reload);
 
   useEffect(() => setRecentIds(readRecents()), []);
 
@@ -111,6 +121,7 @@ export function SearchScreen({
 
       <div className="phone-scroll flex-1 overflow-y-auto px-5 pb-4">
         {bathrooms.error && <Notice tone="error">{bathrooms.error}</Notice>}
+        {bookmark.error && <Notice tone="error">{bookmark.error}</Notice>}
         {bathrooms.loading && !bathrooms.data && <LoadingScreen />}
 
         {query ? (
@@ -121,11 +132,13 @@ export function SearchScreen({
 
             <div className="flex flex-col gap-2.5">
               {shown.map(bathroom => (
-                <ResultRow
+                <BathroomTile
                   key={bathroom.id}
                   bathroom={bathroom}
                   mine={myScores.get(bathroom.id) ?? null}
                   onPress={() => choose(bathroom)}
+                  details={!picking}
+                  onToggleBookmark={picking ? undefined : () => bookmark.toggle(bathroom)}
                 />
               ))}
             </div>
@@ -142,18 +155,20 @@ export function SearchScreen({
               <p style={{ fontSize: 12, fontWeight: 700, color: palette.faint, letterSpacing: "0.04em" }}>RECENTS</p>
               <button
                 onClick={() => setRecentIds(clearRecents())}
-                style={{ fontSize: 12, fontWeight: 600, color: palette.periwinkle }}
+                style={{ fontSize: 12, fontWeight: 600, color: palette.periwinkleDeep }}
               >
                 Clear
               </button>
             </div>
             <div className="flex flex-col gap-2.5">
               {recents.map(bathroom => (
-                <ResultRow
+                <BathroomTile
                   key={bathroom.id}
                   bathroom={bathroom}
                   mine={myScores.get(bathroom.id) ?? null}
                   onPress={() => choose(bathroom)}
+                  details={!picking}
+                  onToggleBookmark={picking ? undefined : () => bookmark.toggle(bathroom)}
                 />
               ))}
             </div>
@@ -165,33 +180,5 @@ export function SearchScreen({
         )}
       </div>
     </div>
-  );
-}
-
-function ResultRow({
-  bathroom,
-  mine,
-  onPress,
-}: {
-  bathroom: Bathroom;
-  mine: number | null;
-  onPress: () => void;
-}) {
-  return (
-    <button
-      onClick={onPress}
-      className="flex w-full items-start gap-3 px-4 py-3.5 text-left active:scale-[0.99]"
-      style={{ background: "white", borderRadius: 16, boxShadow: "0 1px 4px #0000000A" }}
-    >
-      <div className="min-w-0 flex-1">
-        <div className="mb-1">
-          <WashroomBadge type={bathroom.washroom_type} />
-        </div>
-        <div style={{ fontSize: 14, fontWeight: 600, color: palette.charcoal, lineHeight: 1.35 }}>
-          {locationOf(bathroom)}
-        </div>
-      </div>
-      <ScorePair mine={mine} average={bathroom.global_score} />
-    </button>
   );
 }

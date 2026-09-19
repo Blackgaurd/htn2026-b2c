@@ -7,25 +7,38 @@
  * people you follow have been rating.
  */
 
+import { useMemo } from "react";
 import type { Bathroom } from "../../shared/api";
-import { listFeed } from "../api";
+import { listFeed, listMyRankings } from "../api";
 import { palette } from "../lib/display";
 import { useAsync } from "../lib/useAsync";
+import { useBookmark } from "../lib/useBookmark";
 import { EmptyState, LoadingScreen, Notice } from "./chrome";
 import { FeedCard } from "./FeedCard";
 
 export function HomeScreen({
-  onOpenBathroom,
+  onRate,
   onOpenProfile,
   onOpenSearch,
   onFindPeople,
 }: {
-  onOpenBathroom: (bathroom: Bathroom | number) => void;
+  /** Rating from the feed skips the picker: the washroom is already chosen. */
+  onRate: (bathroom: Bathroom) => void;
   onOpenProfile: (userId: number) => void;
   onOpenSearch: () => void;
   onFindPeople: () => void;
 }) {
   const feed = useAsync(() => listFeed(), []);
+  const bookmark = useBookmark(feed.reload);
+
+  // Your own score for the washroom in a post, when you have one. The feed
+  // entry carries the *author's* score; the tile prints both, labelled, and a
+  // dash where a number would be a lie.
+  const rankings = useAsync(() => listMyRankings(), []);
+  const myScores = useMemo(
+    () => new Map((rankings.data ?? []).map(entry => [entry.bathroom.id, entry.score])),
+    [rankings.data],
+  );
 
   return (
     <div className="flex h-full flex-col" style={{ background: palette.bg }}>
@@ -61,7 +74,7 @@ export function HomeScreen({
               <button
                 onClick={onFindPeople}
                 className="w-full py-3"
-                style={{ fontSize: 14, fontWeight: 700, color: palette.periwinkle }}
+                style={{ fontSize: 14, fontWeight: 700, color: palette.periwinkleDeep }}
               >
                 Find people to follow →
               </button>
@@ -70,12 +83,15 @@ export function HomeScreen({
         ) : (
           <div className="flex flex-col gap-3">
             {feed.error && <Notice tone="error">{feed.error}</Notice>}
+            {bookmark.error && <Notice tone="error">{bookmark.error}</Notice>}
             {(feed.data ?? []).map(entry => (
               <FeedCard
                 key={entry.review.id}
                 entry={entry}
-                onOpenBathroom={() => entry.can_use && onOpenBathroom(entry.bathroom.id)}
                 onOpenProfile={() => onOpenProfile(entry.user.id)}
+                mine={myScores.get(entry.bathroom.id) ?? null}
+                onToggleBookmark={() => bookmark.toggle(entry.bathroom)}
+                onRate={() => onRate(entry.bathroom)}
               />
             ))}
           </div>

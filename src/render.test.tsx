@@ -66,7 +66,7 @@ const screens: [string, () => ReactElement][] = [
   ["Splash", () => <SplashScreen onRegister={noop} onLogin={noop} />],
   ["Login", () => <LoginScreen onDone={noop} onRegister={noop} />],
   ["Register", () => <RegisterScreen onDone={noop} onLogin={noop} />],
-  ["Home", () => <HomeScreen onOpenBathroom={noop} onOpenProfile={noop} onOpenSearch={noop} onFindPeople={noop} />],
+  ["Home", () => <HomeScreen onRate={noop} onOpenProfile={noop} onOpenSearch={noop} onFindPeople={noop} />],
   ["Detail", () => <DetailScreen bathroomId={bathroom.id} onBack={noop} onRate={noop} />],
   ["Search", () => <SearchScreen title="Search" onBack={noop} onPick={noop} />],
   ["NearMe", () => <NearMeScreen onOpen={noop} />],
@@ -107,8 +107,15 @@ test("the rate screen leads with one question, then four detail rows", () => {
   expect(html).toContain("How was it?");
   expect(html).toContain("Pick a rating to continue");
   expect(html).toContain("Rate the details");
-  expect(html).toContain("These don't affect the score");
   expect(html).toContain("Photos");
+
+  // The verdict is three coloured buttons, not a row of stars.
+  for (const verdict of ["Good", "OK", "Bad"]) expect(html).toContain(`>${verdict}</button>`);
+
+  // No grey explainer lines under the headings they were explaining.
+  for (const murmur of ["These don't affect the score", "Share what stood out"]) {
+    expect(html).not.toContain(murmur);
+  }
 
   // The detail rows are part of the form now, not hidden behind a disclosure,
   // and there are four of them, not six.

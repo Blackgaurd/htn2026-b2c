@@ -17,6 +17,7 @@ import {
   assertUsable,
   bathroomRow,
   bathroomsById,
+  bookmarkedIds,
   byLocation,
   followeeIds,
   numericParam,
@@ -41,11 +42,12 @@ import { bookmarks, want_to_go } from "../schema";
 export function listBathrooms(req: Request): Bathroom[] {
   const user = requireUser(req);
   const agg = aggregates();
+  const saved = bookmarkedIds(user.id);
 
   return [...bathroomsById().values()]
     .filter(row => canUse(user.washroom_pref, row.washroom_type))
     .sort(byLocation)
-    .map(row => toBathroom(row, agg));
+    .map(row => toBathroom(row, agg, saved));
 }
 
 /**
@@ -89,10 +91,9 @@ export function getBathroom(req: Request & { params: { id: string } }): Bathroom
       .get() !== undefined;
 
   return {
-    ...toBathroom(row, aggregates()),
+    ...toBathroom(row, aggregates(), bookmarkedIds(user.id)),
     my_review: mine ? withScore(mine.review, mine.score) : null,
     friend_reviews,
-    bookmarked: saved(bookmarks),
     want_to_go: saved(want_to_go),
   };
 }

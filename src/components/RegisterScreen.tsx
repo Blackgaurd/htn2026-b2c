@@ -9,9 +9,12 @@
 
 import { useState } from "react";
 import type { WashroomType } from "../../shared/api";
+import { hasWhitespace, isValidEmail, usernameForStorage } from "../../shared/auth";
 import { register } from "../api";
 import { gradient, palette, prefBlurb, washroomMeta } from "../lib/display";
+import { AuthField } from "./AuthField";
 import { Notice } from "./chrome";
+import { BackIcon, CheckIcon } from "./icons";
 
 const PREF_OPTIONS: WashroomType[] = ["male", "female", "universal"];
 
@@ -22,14 +25,41 @@ const FIELDS = [
   { key: "password", label: "Password", placeholder: "••••••••", type: "password" },
 ] as const;
 
+type RegistrationForm = Record<(typeof FIELDS)[number]["key"], string>;
+type FieldName = keyof RegistrationForm;
+type FieldErrors = Partial<Record<FieldName, string>>;
+
+function validationErrors(form: RegistrationForm): FieldErrors {
+  const errors: FieldErrors = {};
+  if (!form.display_name.trim()) errors.display_name = "Enter your name.";
+  if (!form.email.trim()) errors.email = "Enter your email address.";
+  else if (!isValidEmail(form.email)) errors.email = "Enter a valid email address.";
+  if (!usernameForStorage(form.username)) errors.username = "Choose a username.";
+  else if (hasWhitespace(form.username)) errors.username = "Usernames can't contain spaces.";
+  if (!form.password) errors.password = "Enter a password.";
+  return errors;
+}
+
 export function RegisterScreen({ onDone, onLogin }: { onDone: () => void; onLogin: () => void }) {
   const [step, setStep] = useState<"info" | "preference">("info");
-  const [form, setForm] = useState({ display_name: "", email: "", username: "", password: "" });
+  const [form, setForm] = useState<RegistrationForm>({ display_name: "", email: "", username: "", password: "" });
   const [pref, setPref] = useState<WashroomType | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [touched, setTouched] = useState<Partial<Record<FieldName, boolean>>>({});
+  const [attemptedInfo, setAttemptedInfo] = useState(false);
 
-  const canContinue = form.display_name.trim() && form.email.trim() && form.username.trim();
+  const errors = validationErrors(form);
+  const canContinue = Object.keys(errors).length === 0;
+
+  function continueToPreference() {
+    if (!canContinue) {
+      setAttemptedInfo(true);
+      return;
+    }
+    setError(null);
+    setStep("preference");
+  }
 
   async function submit() {
     if (!pref || busy) return;
@@ -53,16 +83,12 @@ export function RegisterScreen({ onDone, onLogin }: { onDone: () => void; onLogi
           <button
             onClick={() => setStep("info")}
             className="-ml-1 mb-6 flex items-center gap-1"
-            style={{ color: palette.periwinkle, fontWeight: 600, fontSize: 14 }}
+            style={{ color: palette.periwinkleDeep, fontWeight: 600, fontSize: 14 }}
           >
-            ← Back
+            <BackIcon />
+            Back
           </button>
-          <div className="mb-1 flex items-center gap-2">
-            <span style={{ fontSize: 20 }}>🚻</span>
-            <span style={{ color: palette.faint, fontSize: 12, fontWeight: 700, letterSpacing: "0.08em" }}>
-              STEP 2 OF 2
-            </span>
-          </div>
+          <span style={{ color: palette.faint, fontSize: 12, fontWeight: 700, letterSpacing: "0.08em" }}>STEP 2 OF 2</span>
           <h2 style={{ fontSize: 26, fontWeight: 800, color: palette.charcoal, lineHeight: 1.2, marginTop: 8 }}>
             Which washrooms
             <br />
@@ -103,7 +129,7 @@ export function RegisterScreen({ onDone, onLogin }: { onDone: () => void; onLogi
                     background: selected ? meta.color : "transparent",
                   }}
                 >
-                  {selected && <span style={{ color: "white", fontSize: 11, lineHeight: 1 }}>✓</span>}
+                  {selected && <CheckIcon />}
                 </div>
               </button>
             );
@@ -125,7 +151,7 @@ export function RegisterScreen({ onDone, onLogin }: { onDone: () => void; onLogi
               boxShadow: pref ? "0 4px 20px #7B8CDE44" : "none",
             }}
           >
-            {busy ? "Creating…" : "Let's go →"}
+            {busy ? "Creating…" : "Create account"}
           </button>
         </div>
       </div>
@@ -142,41 +168,28 @@ export function RegisterScreen({ onDone, onLogin }: { onDone: () => void; onLogi
       </div>
 
       <div className="flex flex-col gap-4 px-6 pb-8">
-        {FIELDS.map(field => (
-          <div key={field.key}>
-            <label style={{ fontSize: 13, fontWeight: 600, color: palette.muted, display: "block", marginBottom: 6 }}>
-              {field.label}
-            </label>
-            <input
+        {FIELDS.map(field => {
+          const fieldError = attemptedInfo || touched[field.key] ? errors[field.key] : undefined;
+          return (
+            <AuthField
+              key={field.key}
+              id={`register-${field.key}`}
+              label={field.label}
               type={field.type}
               placeholder={field.placeholder}
               value={form[field.key]}
-              onChange={e => setForm(f => ({ ...f, [field.key]: e.target.value }))}
-              className="w-full px-4 py-3.5 outline-none"
-              style={{
-                borderRadius: 14,
-                background: "white",
-                border: `1.5px solid ${palette.border}`,
-                fontSize: 15,
-                color: palette.charcoal,
-                fontFamily: "inherit",
-              }}
-              onFocus={e => {
-                e.target.style.borderColor = palette.periwinkle;
-                e.target.style.boxShadow = "0 0 0 3px #7B8CDE18";
-              }}
-              onBlur={e => {
-                e.target.style.borderColor = palette.border;
-                e.target.style.boxShadow = "none";
-              }}
+              error={fieldError}
+              onChange={value => setForm(f => ({ ...f, [field.key]: value }))}
+              onBlur={() => setTouched(current => ({ ...current, [field.key]: true }))}
+              onKeyDown={e => e.key === "Enter" && continueToPreference()}
             />
-          </div>
-        ))}
+          );
+        })}
 
         {error && <Notice tone="error">{error}</Notice>}
 
         <button
-          onClick={() => canContinue && setStep("preference")}
+          onClick={continueToPreference}
           disabled={!canContinue}
           className="mt-2 w-full py-4 transition-opacity active:opacity-80"
           style={{
@@ -192,7 +205,7 @@ export function RegisterScreen({ onDone, onLogin }: { onDone: () => void; onLogi
         </button>
         <p className="text-center" style={{ color: palette.muted, fontSize: 13 }}>
           Already have an account?{" "}
-          <button onClick={onLogin} style={{ color: palette.periwinkle, fontWeight: 600 }}>
+          <button onClick={onLogin} style={{ color: palette.periwinkleDeep, fontWeight: 600 }}>
             Log in
           </button>
         </p>

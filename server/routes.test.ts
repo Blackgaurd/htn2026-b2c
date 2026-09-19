@@ -634,6 +634,32 @@ test("register refuses a duplicate username or email, and never returns the pass
   });
   expect(dupeEmail.status).toBeGreaterThanOrEqual(400);
   expect(errorOf(dupeEmail.body)).not.toBe("");
+
+  const spacedUsername = await api(paths.register, {
+    method: "POST",
+    body: JSON.stringify({
+      username: "new student",
+      display_name: "New Student",
+      email: "new.student@uwaterloo.ca",
+      password: "hunter2",
+      washroom_pref: "universal",
+    }),
+  });
+  expect(spacedUsername.status).toBe(400);
+  expect(errorOf(spacedUsername.body)).toContain("spaces");
+
+  const malformedEmail = await api(paths.register, {
+    method: "POST",
+    body: JSON.stringify({
+      username: "validstudent",
+      display_name: "Valid Student",
+      email: "not-an-email",
+      password: "hunter2",
+      washroom_pref: "universal",
+    }),
+  });
+  expect(malformedEmail.status).toBe(400);
+  expect(errorOf(malformedEmail.body)).toContain("valid email");
 });
 
 test("an unauthenticated or unknown user gets 401, never data", async () => {

@@ -17,6 +17,7 @@ import {
   aggregates,
   assertUsable,
   bathroomRow,
+  bookmarkedIds,
   byLocation,
   numericParam,
   requireUser,
@@ -37,11 +38,12 @@ type IdReq = Request & { params: { id: string } };
  */
 function savedRooms(user: UserRow, bathroomIds: number[]): Bathroom[] {
   const agg = aggregates();
+  const saved = bookmarkedIds(user.id);
   return bathroomIds
     .map(id => bathroomRow(id))
     .filter(row => canUse(user.washroom_pref, row.washroom_type))
     .sort(byLocation)
-    .map(row => toBathroom(row, agg));
+    .map(row => toBathroom(row, agg, saved));
 }
 
 /** Resolve `:id`, check the gate, and hand back what both toggles need. */

@@ -25,6 +25,7 @@ import { db } from "../db";
 import {
   aggregates,
   bathroomsById,
+  bookmarkedIds,
   followeeIds,
   HttpError,
   numericParam,
@@ -56,6 +57,7 @@ export function listFeed(req: Request): FeedEntry[] {
   const viewer = requireUser(req);
   const agg = aggregates();
   const rooms = bathroomsById();
+  const saved = bookmarkedIds(viewer.id);
 
   const entries = followeeIds(viewer.id).flatMap(followeeId => {
     const author = userRow(followeeId);
@@ -68,7 +70,7 @@ export function listFeed(req: Request): FeedEntry[] {
         {
           review: withScore(review, score),
           user: summary,
-          bathroom: toBathroom(room, agg),
+          bathroom: toBathroom(room, agg, saved),
           can_use: canUse(viewer.washroom_pref, room.washroom_type),
         } satisfies FeedEntry,
       ];
@@ -137,15 +139,16 @@ export function deleteFollow(req: IdReq): UserSummary {
  * first. Rank still comes from `scoredReviews`, so an activity row and a
  * rankings row can never disagree about where a washroom sits.
  */
-function activityFor(userId: number): ProfileActivity[] {
+function activityFor(userId: number, viewerId: number): ProfileActivity[] {
   const agg = aggregates();
   const rooms = bathroomsById();
+  const saved = bookmarkedIds(viewerId);
 
   return scoredReviews(userId)
     .map(({ review, score, rank }) => {
       const room = rooms.get(review.bathroom_id);
       if (!room) throw new HttpError(500, `review ${review.id} points at a washroom that is gone`);
-      return { review: withScore(review, score), bathroom: toBathroom(room, agg), rank };
+      return { review: withScore(review, score), bathroom: toBathroom(room, agg, saved), rank };
     })
     .sort((a, b) => b.review.created_at.localeCompare(a.review.created_at) || b.review.id - a.review.id)
     .slice(0, PROFILE_ACTIVITY_LIMIT);
@@ -171,7 +174,7 @@ function profileFor(viewer: UserRow, target: UserRow): Profile {
       : null,
     following_count: edges.filter(e => e.follower_id === target.id).length,
     followers_count: edges.filter(e => e.followee_id === target.id).length,
-    recent: activityFor(target.id),
+    recent: activityFor(target.id, viewer.id),
   };
 }
 

@@ -7,9 +7,10 @@
  */
 
 import type { ReactNode } from "react";
-import type { Bathroom, UserSummary, WashroomType } from "../../shared/api";
-import { gradient, initials, locationOf, palette, scoreColor, washroomMeta } from "../lib/display";
-import { BookmarkIcon, HomeIcon, PinIcon, PlusIcon, ProfileIcon, TrophyIcon } from "./icons";
+import type { Bathroom, DetailAverages, ReviewRow, UserSummary, WashroomType } from "../../shared/api";
+import { DETAIL_KEYS, detailKeysFor } from "../../shared/api";
+import { detailMeta, gradient, initials, locationOf, palette, scoreColor, washroomMeta } from "../lib/display";
+import { BookmarkIcon, HomeIcon, PinIcon, PlusIcon, ProfileIcon, StarIcon, TrophyIcon } from "./icons";
 
 // ─── Badges ───────────────────────────────────────────────────────────────────
 
@@ -78,45 +79,151 @@ export function Avatar({ user, size = 36 }: { user: Pick<UserSummary, "display_n
 
 // ─── Rows ─────────────────────────────────────────────────────────────────────
 
-export function BathroomRow({
+/**
+ * A washroom, as a row. **The** washroom row: rankings, search, near me, saved,
+ * a profile's activity and the feed's inner card are all this component.
+ *
+ * They were six near-identical blocks that had drifted, different paddings,
+ * different score treatments, a bookmark button that hung outside the card on
+ * one screen and didn't exist on the others. One component means a change to how
+ * a washroom looks happens once, and a tile can't be missing a control just
+ * because its screen was written on a different day.
+ *
+ * Everything optional is off by default, so a plain `<BathroomTile bathroom />`
+ * is still a legible row:
+ *
+ * - `rank` prefixes the position number (rankings, activity).
+ * - `mine` is your own score; without it only the campus average has a number.
+ * - `meta` is a small line by the badge (distance, time, whatever the screen has).
+ * - `onToggleBookmark` lights up the bookmark. Omit it for a read-only tile.
+ * - `canUse === false` is a washroom outside your preference: it keeps the badge
+ *   that says so and loses every control, silently, because the badge already
+ *   said it and a sentence underneath said it twice.
+ * - `details` prints the campus detail averages under the name.
+ */
+export function BathroomTile({
   bathroom,
   onPress,
   selected,
-  score,
-  trailing,
+  raised,
+  mine,
+  rank,
+  meta,
+  details,
+  canUse = true,
+  showScores = true,
+  bookmarked,
+  onToggleBookmark,
+  footer,
 }: {
   bathroom: Bathroom;
-  onPress: () => void;
+  onPress?: () => void;
   selected?: boolean;
-  /** Your personal score when you have one; falls back to the global score. */
-  score?: number | null;
-  trailing?: ReactNode;
+  /** Gives a nested tile enough depth to read as a separate surface. */
+  raised?: boolean;
+  /** Your personal score. Undefined prints a dash under YOURS, same as null. */
+  mine?: number | null;
+  rank?: number;
+  meta?: ReactNode;
+  details?: boolean;
+  canUse?: boolean;
+  /** Feed cards already show the review score; omit the comparison pair there. */
+  showScores?: boolean;
+  /** Defaults to the row's own `bookmarked`; pass it only to override. */
+  bookmarked?: boolean;
+  onToggleBookmark?: () => void;
+  footer?: ReactNode;
 }) {
-  const shown = score === undefined ? bathroom.global_score : score;
+  const on = bookmarked ?? bathroom.bookmarked;
+  const body = (
+    <>
+      <div className="mb-1 flex flex-wrap items-center gap-2">
+        <WashroomBadge type={bathroom.washroom_type} />
+        {meta && <span style={{ fontSize: 11, fontWeight: 600, color: palette.faint }}>{meta}</span>}
+      </div>
+      {/* Never truncated: the tail of the name is the part that distinguishes
+          this washroom from the one on the next floor. */}
+      <div style={{ color: palette.charcoal, fontWeight: 600, fontSize: 14, lineHeight: 1.35 }}>
+        {locationOf(bathroom)}
+      </div>
+    </>
+  );
+
   return (
-    <button
-      onClick={onPress}
-      className="flex w-full items-center gap-3 px-4 py-3.5 transition-all active:scale-[0.98]"
+    <div
+      className="px-4 py-3.5"
       style={{
         background: selected ? palette.periwinkleLight : "white",
         borderRadius: 16,
-        textAlign: "left",
         border: selected ? `2px solid ${palette.periwinkle}` : "2px solid transparent",
-        boxShadow: selected ? "0 4px 16px #7B8CDE22" : "0 1px 4px #0000000A",
+        boxShadow: selected ? "0 4px 16px #7B8CDE22" : raised ? "0 4px 12px #292B4518" : "0 1px 4px #0000000A",
       }}
     >
-      <div className="min-w-0 flex-1">
-        <div className="mb-1 flex flex-wrap items-center gap-2">
-          <WashroomBadge type={bathroom.washroom_type} />
-        </div>
-        <div style={{ color: palette.charcoal, fontWeight: 600, fontSize: 14, lineHeight: 1.35 }}>
-          {locationOf(bathroom)}
+      <div className="flex items-start gap-3">
+        {rank !== undefined && (
+          <div
+            className="flex-shrink-0 tabular-nums"
+            style={{ width: 22, fontSize: 14, fontWeight: 700, color: palette.faint, paddingTop: 2 }}
+          >
+            {rank}
+          </div>
+        )}
+
+        {onPress ? (
+          <button onClick={onPress} className="min-w-0 flex-1 text-left active:opacity-70">
+            {body}
+          </button>
+        ) : (
+          <div className="min-w-0 flex-1">{body}</div>
+        )}
+
+        <div className="flex flex-shrink-0 items-start gap-2">
+          {showScores && <ScorePair mine={mine} average={bathroom.global_score} />}
+          {canUse && onToggleBookmark && (
+            <BookmarkButton on={on} onToggle={onToggleBookmark} size={32} />
+          )}
         </div>
       </div>
-      <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
-        {trailing ?? <ScorePair mine={shown} average={bathroom.global_score} />}
-      </div>
-    </button>
+
+      {details && <DetailAverageRow averages={bathroom.detail_averages} />}
+      {footer}
+    </div>
+  );
+}
+
+/**
+ * What everyone thought of the details, as an average.
+ *
+ * Shown where you're choosing a washroom rather than reading about one, because
+ * "is it clean" is the question a search is actually asking. Stars round to the
+ * nearest whole for the shape, the number beside them is the real average, and
+ * neither is anywhere near `global_score`.
+ */
+export function DetailAverageRow({ averages }: { averages: DetailAverages }) {
+  const shown = DETAIL_KEYS.filter(key => averages[key] !== undefined);
+  if (shown.length === 0) return null;
+
+  return (
+    <div
+      className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-2 pt-2.5"
+      style={{ borderTop: `1px solid ${palette.border}` }}
+    >
+      {shown.map(key => {
+        const value = averages[key] ?? 0;
+        return (
+          <div key={key} className="flex min-w-0 items-center justify-between gap-1.5">
+            <span style={{ fontSize: 11, fontWeight: 600, color: palette.muted }}>
+              {detailMeta[key]?.label ?? key}
+            </span>
+            <span className="flex gap-px">
+              {[1, 2, 3, 4, 5].map(star => (
+                <StarIcon key={star} filled={Math.round(value) >= star} size={10} />
+              ))}
+            </span>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -131,7 +238,7 @@ export function BathroomRow({
  */
 export function ScorePair({ mine, average }: { mine: number | null | undefined; average: number | null }) {
   return (
-    <div className="flex items-start gap-3 text-right">
+    <div className="flex items-start gap-1.5 text-right">
       <ScoreCell label="AVG" value={average} />
       <ScoreCell label="YOURS" value={mine ?? null} />
     </div>
@@ -140,19 +247,66 @@ export function ScorePair({ mine, average }: { mine: number | null | undefined; 
 
 function ScoreCell({ label, value }: { label: string; value: number | null }) {
   return (
-    <div style={{ minWidth: 34 }}>
+    <div className="flex flex-col items-center" style={{ minWidth: 34 }}>
       <div style={{ fontSize: 9, fontWeight: 700, color: palette.faint, letterSpacing: "0.04em" }}>{label}</div>
       <div
-        className="tabular-nums"
+        className="mt-1 flex items-center justify-center rounded-full tabular-nums"
         style={{
-          fontSize: 15,
+          width: 34,
+          height: 34,
+          fontSize: 13,
           fontWeight: 800,
           color: value === null ? palette.faint : scoreColor(value),
-          lineHeight: 1.3,
+          border: `1px solid ${palette.border}`,
+          background: "white",
         }}
       >
         {value === null ? "–" : value.toFixed(1)}
       </div>
+    </div>
+  );
+}
+
+/**
+ * The detail stars *one person* gave, as opposed to `DetailAverageRow`, which is
+ * everybody's. Same rule applies to both: notes about the room, never summed,
+ * never anywhere near the score.
+ */
+export function ReviewDetails({ review, type }: { review: ReviewRow; type: WashroomType }) {
+  const shown = detailKeysFor(type).filter(key => review[key] != null);
+  if (shown.length === 0) return null;
+
+  return (
+    <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+      {shown.map(key => (
+        <div key={key} className="flex min-w-0 items-center justify-between gap-1.5">
+          <span style={{ fontSize: 11.5, fontWeight: 600, color: palette.muted }}>
+            {detailMeta[key]?.label ?? key}
+          </span>
+          <span className="flex gap-px">
+            {[1, 2, 3, 4, 5].map(star => (
+              <StarIcon key={star} filled={(review[key] ?? 0) >= star} size={11} />
+            ))}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Review photos, as a wrapping grid. There can be up to `MAX_REVIEW_PHOTOS`. */
+export function PhotoStrip({ photos, size = 84 }: { photos: string[]; size?: number }) {
+  if (photos.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-2">
+      {photos.map((src, index) => (
+        <img
+          key={index}
+          src={src}
+          alt=""
+          style={{ width: size, height: size, borderRadius: 12, objectFit: "cover", display: "block" }}
+        />
+      ))}
     </div>
   );
 }
@@ -162,30 +316,40 @@ export function BackButton({ onClick }: { onClick: () => void }) {
     <button
       onClick={onClick}
       className="active:opacity-60"
-      style={{ fontSize: 14, fontWeight: 600, color: palette.periwinkle }}
+      style={{ fontSize: 14, fontWeight: 600, color: palette.periwinkleDeep }}
     >
       ← Back
     </button>
   );
 }
 
-export function BookmarkButton({ on, onToggle, disabled }: { on: boolean; onToggle: () => void; disabled?: boolean }) {
+export function BookmarkButton({
+  on,
+  onToggle,
+  size = 38,
+  circular = false,
+}: {
+  on: boolean;
+  onToggle: () => void;
+  size?: number;
+  /** Compact header actions use the same control with a circular hit area. */
+  circular?: boolean;
+}) {
   return (
     <button
       onClick={onToggle}
-      disabled={disabled}
-      title={disabled ? "You can only bookmark washrooms you use" : on ? "Bookmarked" : "Bookmark"}
-      className="flex items-center justify-center active:opacity-70"
+      aria-label={on ? "Remove bookmark" : "Bookmark"}
+      title={on ? "Bookmarked" : "Bookmark"}
+      className="flex flex-shrink-0 items-center justify-center active:opacity-70"
       style={{
-        width: 38,
-        height: 38,
-        borderRadius: 12,
-        background: "white",
-        opacity: disabled ? 0.4 : 1,
-        border: `1.5px solid ${palette.border}`,
+        width: size,
+        height: size,
+        borderRadius: circular ? "50%" : 12,
+        background: circular ? "transparent" : "white",
+        border: "none",
       }}
     >
-      <BookmarkIcon filled={on} />
+      <BookmarkIcon filled={on} size={size > 34 ? 20 : 17} />
     </button>
   );
 }
@@ -357,8 +521,18 @@ export function Dropdown<T extends string>({
       </select>
       <span
         aria-hidden
-        className="pointer-events-none absolute"
-        style={{ right: 12, fontSize: 9, color: palette.faint }}
+        className="pointer-events-none absolute flex items-center justify-center"
+        style={{
+          right: 7,
+          width: 20,
+          height: 20,
+          borderRadius: 6,
+          background: palette.periwinkleLight,
+          color: palette.periwinkleDeep,
+          fontSize: 13,
+          fontWeight: 800,
+          lineHeight: 1,
+        }}
       >
         ▾
       </span>
@@ -468,7 +642,7 @@ export function TabBar({ active, onSelect, onRate }: { active: Tab; onSelect: (t
         >
           <PlusIcon />
         </div>
-        <span style={{ color: palette.periwinkle, fontSize: 10, fontWeight: 600, marginTop: 4 }}>Rate</span>
+        <span style={{ color: palette.periwinkleDeep, fontSize: 10, fontWeight: 600, marginTop: 4 }}>Rate</span>
       </button>
 
       {right.map(tab => (
@@ -493,7 +667,7 @@ function TabButton({
       <Icon active={active} />
       <span
         style={{
-          color: active ? palette.periwinkle : palette.faint,
+          color: active ? palette.periwinkleDeep : palette.faint,
           fontSize: 10,
           fontWeight: active ? 600 : 400,
         }}

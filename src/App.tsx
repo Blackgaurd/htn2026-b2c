@@ -167,7 +167,7 @@ export function App() {
         const here: Screen = { name: "home" };
         return (
           <HomeScreen
-            onOpenBathroom={b => openBathroom(b, "home")}
+            onRate={bathroom => setScreen({ name: "rate-score", bathroom })}
             onOpenProfile={userId => setScreen({ name: "profile", userId })}
             onOpenSearch={() => setScreen({ name: "search", mode: "open", origin: here })}
             onFindPeople={() => setScreen({ name: "people", origin: here })}
@@ -183,6 +183,7 @@ export function App() {
         return (
           <SearchScreen
             title={mode === "rate" ? "Which washroom?" : "Search"}
+            picking={mode === "rate"}
             onBack={() => setScreen(origin)}
             onPick={bathroom =>
               mode === "rate"
@@ -225,7 +226,9 @@ export function App() {
 
       case "result":
         return (
-          <CompareResultScreen result={screen.result} onDone={() => setScreen({ name: "rankings" })} />
+          // Done lands you back on the feed: the review flow started from a tab
+          // and ends by handing the app back, not by opening a fourth screen.
+          <CompareResultScreen result={screen.result} onDone={() => setScreen({ name: "home" })} />
         );
 
       case "rankings":

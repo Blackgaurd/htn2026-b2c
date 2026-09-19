@@ -33,8 +33,10 @@ import {
 } from "../../shared/api";
 import { db } from "../db";
 import {
+  aggregates,
   assertUsable,
   bathroomRow,
+  bookmarkedIds,
   HttpError,
   now,
   rankingsFor,
@@ -69,7 +71,8 @@ const DETAIL_COLUMNS: readonly ReviewDetailKey[] = [
  * its bucket, so this endpoint reads nothing it doesn't recompute.
  */
 export function listMyRankings(req: Request): RankedBathroom[] {
-  return rankingsFor(requireUser(req).id);
+  const user = requireUser(req);
+  return rankingsFor(user.id, aggregates(), bookmarkedIds(user.id));
 }
 
 /**
@@ -153,7 +156,7 @@ export async function submitReview(req: Request): Promise<SubmitReviewResult> {
 
   // 7. Rank the whole list again and report where this one landed. `rank` is
   //    1-based across every bucket, not within one.
-  const rankings = rankingsFor(user.id);
+  const rankings = rankingsFor(user.id, aggregates(), bookmarkedIds(user.id));
   const landed = rankings.find(entry => entry.review_id === created.id);
   if (!landed) throw new HttpError(500, "review vanished after insert");
 

@@ -14,7 +14,7 @@ import { detailKeysFor } from "../../shared/api";
 import { getBathroom, setBookmark } from "../api";
 import { detailMeta, gradient, locationOf, palette, scoreColor, scoreLabel } from "../lib/display";
 import { useAsync } from "../lib/useAsync";
-import { BackButton, BookmarkButton, LoadingScreen, Notice, PrimaryButton, WashroomBadge } from "./chrome";
+import { BackButton, BookmarkButton, LoadingScreen, Notice, PhotoStrip, PrimaryButton, WashroomBadge } from "./chrome";
 import { StarIcon } from "./icons";
 
 export function DetailScreen({
@@ -102,18 +102,8 @@ export function DetailScreen({
       <div className="phone-scroll flex flex-1 flex-col gap-4 overflow-y-auto px-5 py-5">
         {error && <Notice tone="error">{error}</Notice>}
 
-        {mine && mine.photos.length > 0 && (
-          <div className="flex gap-2">
-            {mine.photos.map((src, index) => (
-              <img
-                key={index}
-                src={src}
-                alt=""
-                style={{ width: 110, height: 110, borderRadius: 14, objectFit: "cover", display: "block" }}
-              />
-            ))}
-          </div>
-        )}
+        {/* Wraps: a review carries up to `MAX_REVIEW_PHOTOS` of these now. */}
+        {mine && <PhotoStrip photos={mine.photos} size={104} />}
 
         {mine?.note && (
           <div className="rounded-2xl p-4" style={{ background: "white" }}>

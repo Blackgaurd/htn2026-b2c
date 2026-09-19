@@ -1,24 +1,38 @@
 /**
  * Step 2 of rating: the verdict, then anything else you care to record.
  *
- * The star row at the top is the only input that touches the score, it picks the
- * band, and the duel picks the place inside it. Everything below it is deliberately
- * inert: cleanliness, smell and the rest are notes about the room, not a second
- * scoring system, which is what the line under the heading says out loud.
+ * The verdict is three buttons, Good / OK / Bad, in the three colours a score is
+ * ever printed in. It used to be five stars, which asked for a precision the
+ * answer doesn't have: the stars only ever chose a band, and the duel decides
+ * everything inside it, so four and five stars meant exactly the same thing.
+ * Three buttons say that honestly, and they're the same three tiers the score
+ * colours already mean.
  *
- * They're shown expanded rather than behind a disclosure, a control you have to
- * discover gets used by nobody, and there are four of them; see `detailKeysFor`.
+ * Everything below it is deliberately inert: cleanliness, smell and the rest are
+ * notes about the room, not a second scoring system. Shown expanded rather than
+ * behind a disclosure, since a control you have to discover gets used by nobody.
+ *
+ * No explanatory grey text. Every line of it restated a heading ("Optional",
+ * "Share what stood out", "Up to 2"), and a screen that murmurs under each of
+ * its own labels reads as unsure of them.
  */
 
 import { useRef, useState } from "react";
-import type { Bathroom, Rating, ReviewDetails } from "../../shared/api";
-import { BUCKET_LABELS, MAX_REVIEW_PHOTOS, bucketForRating, detailKeysFor } from "../../shared/api";
+import type { Bathroom, Bucket, Rating, ReviewDetails } from "../../shared/api";
+import { BUCKET_LABELS, BUCKET_ORDER, MAX_REVIEW_PHOTOS, detailKeysFor, ratingForBucket } from "../../shared/api";
 import type { ReviewDraft } from "../lib/duel";
-import { STAR_LABELS, detailMeta, gradient, locationOf, palette } from "../lib/display";
+import { detailMeta, gradient, locationOf, palette, scoreScale } from "../lib/display";
 import { BackButton, Notice, WashroomBadge } from "./chrome";
 import { StarIcon } from "./icons";
 
 const STARS: Rating[] = [1, 2, 3, 4, 5];
+
+/** Green, yellow, red: the same three colours a finished score is printed in. */
+const VERDICT_COLOR: Record<Bucket, string> = {
+  loved: scoreScale.good,
+  fine: scoreScale.ok,
+  never: scoreScale.bad,
+};
 
 export function RateScoreScreen({
   bathroom,
@@ -29,15 +43,13 @@ export function RateScoreScreen({
   onBack: () => void;
   onContinue: (draft: ReviewDraft) => void;
 }) {
-  const [rating, setRating] = useState<Rating | null>(null);
-  const [hovered, setHovered] = useState<Rating | null>(null);
+  const [verdict, setVerdict] = useState<Bucket | null>(null);
   const [details, setDetails] = useState<ReviewDetails>({});
   const [photos, setPhotos] = useState<string[]>([]);
   const [note, setNote] = useState("");
   const [photoError, setPhotoError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  const shown = hovered ?? rating ?? 0;
   const keys = detailKeysFor(bathroom.washroom_type);
 
   function addPhotos(files: FileList | null) {
@@ -86,38 +98,33 @@ export function RateScoreScreen({
             How was it?
           </div>
 
-          <div className="mt-5 flex justify-center gap-3">
-            {STARS.map(star => (
-              <button
-                key={star}
-                onMouseEnter={() => setHovered(star)}
-                onMouseLeave={() => setHovered(null)}
-                onClick={() => setRating(star)}
-                className="transition-transform active:scale-90"
-                style={{ transform: shown >= star ? "scale(1.08)" : "scale(1)" }}
-              >
-                <StarIcon filled={shown >= star} size={36} />
-              </button>
-            ))}
+          <div className="mt-5 flex gap-2">
+            {BUCKET_ORDER.map(bucket => {
+              const color = VERDICT_COLOR[bucket];
+              const on = verdict === bucket;
+              return (
+                <button
+                  key={bucket}
+                  onClick={() => setVerdict(bucket)}
+                  className="flex-1 py-3.5 transition-all active:scale-95"
+                  style={{
+                    borderRadius: 14,
+                    fontSize: 15,
+                    fontWeight: 800,
+                    background: on ? color : `${color}14`,
+                    color: on ? "white" : color,
+                    border: `1.5px solid ${on ? color : "transparent"}`,
+                  }}
+                >
+                  {BUCKET_LABELS[bucket]}
+                </button>
+              );
+            })}
           </div>
-
-          <div
-            className="mt-4 text-center"
-            style={{ fontSize: 14, fontWeight: 700, color: shown ? palette.charcoal : palette.faint }}
-          >
-            {shown ? STAR_LABELS[shown] : "Tap to rate"}
-          </div>
-
-          {rating !== null && (
-            <div className="mt-1 text-center" style={{ fontSize: 12, color: palette.muted }}>
-              We'll compare it against your other “{BUCKET_LABELS[bucketForRating(rating)].toLowerCase()}” picks next
-            </div>
-          )}
         </div>
 
         <div className="mt-3 rounded-2xl p-4" style={{ background: "white" }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: palette.charcoal }}>Rate the details</div>
-          <div style={{ fontSize: 11, color: palette.muted }}>These don't affect the score</div>
 
           <div className="mt-1">
             {keys.map(key => {
@@ -151,9 +158,8 @@ export function RateScoreScreen({
 
         <div className="mt-3 rounded-2xl p-4" style={{ background: "white" }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: palette.charcoal }}>Photos</div>
-          <div style={{ fontSize: 11, color: palette.muted }}>Up to {MAX_REVIEW_PHOTOS}</div>
 
-          <div className="mt-3 flex gap-2">
+          <div className="mt-3 flex flex-wrap gap-2">
             {photos.map((src, index) => (
               <div key={index} className="relative">
                 <img
@@ -188,7 +194,7 @@ export function RateScoreScreen({
                   height: 76,
                   borderRadius: 12,
                   border: `1.5px dashed ${palette.periwinkleMid}`,
-                  color: palette.periwinkle,
+                  color: palette.periwinkleDeep,
                   fontSize: 12,
                   fontWeight: 700,
                   background: palette.bg,
@@ -219,9 +225,8 @@ export function RateScoreScreen({
         </div>
 
         <div className="mt-3 rounded-2xl p-4" style={{ background: "white" }}>
-          <div className="mb-3">
-            <div style={{ fontSize: 14, fontWeight: 700, color: palette.charcoal }}>Leave a note</div>
-            <div style={{ fontSize: 11, color: palette.muted }}>Share what stood out</div>
+          <div className="mb-3" style={{ fontSize: 14, fontWeight: 700, color: palette.charcoal }}>
+            Leave a note
           </div>
           <textarea
             placeholder="e.g. Always clean, great soap dispensers. The hand dryer is a bit loud."
@@ -254,28 +259,31 @@ export function RateScoreScreen({
       <div className="px-5 pb-8 pt-4" style={{ background: palette.bg, borderTop: `1px solid ${palette.border}` }}>
         <button
           onClick={() => {
-            if (rating === null) return;
+            if (verdict === null) return;
+            // The button *is* the band; `rating` is the stored input that band
+            // maps back to, so nothing downstream has to know which control
+            // produced it.
             onContinue({
               bathroom,
-              rating,
+              rating: ratingForBucket(verdict),
               details,
               photos,
               note: note.trim() || null,
-              bucket: bucketForRating(rating),
+              bucket: verdict,
             });
           }}
-          disabled={rating === null}
+          disabled={verdict === null}
           className="w-full py-4 transition-all active:opacity-80"
           style={{
             borderRadius: 16,
             fontSize: 16,
             fontWeight: 700,
-            background: rating === null ? palette.border : gradient.primary,
-            color: rating === null ? palette.faint : "white",
-            boxShadow: rating === null ? "none" : "0 4px 20px #7B8CDE44",
+            background: verdict === null ? palette.border : gradient.primary,
+            color: verdict === null ? palette.faint : "white",
+            boxShadow: verdict === null ? "none" : "0 4px 20px #7B8CDE44",
           }}
         >
-          {rating === null ? "Pick a rating to continue" : "Submit & Compare →"}
+          {verdict === null ? "Pick a rating to continue" : "Submit & Compare →"}
         </button>
       </div>
     </div>
