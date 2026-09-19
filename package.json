@@ -10,6 +10,7 @@
     "db:studio": "bun --bun drizzle-kit studio",
     "db:catalogue": "bun server/catalogue.ts",
     "db:seed": "bun server/seed.ts",
+    "db:populate": "bun server/populate.ts",
     "db:reset": "rm -f data.db data.db-wal data.db-shm"
   },
   "dependencies": {

@@ -1,0 +1,51 @@
+[
+  { "user": "rinq", "bathroom_id": 25, "rating": 5, "note": "Sixth floor, nobody up here, and it still gets cleaned daily.", "created_at": "2026-09-15 09:05:00" },
+  { "user": "rinq", "bathroom_id": 6, "rating": 4, "note": "Good, but the queue after an 11:30 lecture is real.", "created_at": "2026-09-15 12:48:00" },
+  { "user": "rinq", "bathroom_id": 21, "rating": 4, "note": "Warm water, working lock, no notes.", "created_at": "2026-09-16 10:31:00" },
+  { "user": "rinq", "bathroom_id": 15, "rating": 3, "note": "Convenient, that's the whole review.", "created_at": "2026-09-16 17:14:00" },
+  { "user": "rinq", "bathroom_id": 9, "rating": 3, "note": null, "created_at": "2026-09-17 08:52:00" },
+  { "user": "rinq", "bathroom_id": 19, "rating": 2, "note": "Floor is permanently damp. Why.", "created_at": "2026-09-18 14:26:00" },
+
+  { "user": "noorh", "bathroom_id": 11, "rating": 5, "note": "Fifth floor secret. Two stalls, zero traffic.", "created_at": "2026-09-15 11:20:00" },
+  { "user": "noorh", "bathroom_id": 3, "rating": 5, "note": "Single occupancy is always the correct answer.", "created_at": "2026-09-16 09:44:00", "details": { "privacy": 5, "cleanliness": 4 } },
+  { "user": "noorh", "bathroom_id": 6, "rating": 4, "note": "Overrated but genuinely fine.", "created_at": "2026-09-16 15:02:00" },
+  { "user": "noorh", "bathroom_id": 24, "rating": 3, "note": "That flickering light again.", "created_at": "2026-09-17 13:38:00" },
+  { "user": "noorh", "bathroom_id": 17, "rating": 3, "note": "Busy, but nothing's ever broken.", "created_at": "2026-09-18 10:11:00" },
+
+  { "user": "tashad", "bathroom_id": 6, "rating": 5, "note": "Mirrors, lighting, counter space. Someone designed this on purpose.", "created_at": "2026-09-15 08:40:00" },
+  { "user": "tashad", "bathroom_id": 21, "rating": 4, "note": "Worth the walk over to E7.", "created_at": "2026-09-16 12:55:00" },
+  { "user": "tashad", "bathroom_id": 11, "rating": 4, "note": "Quiet, though the door sticks.", "created_at": "2026-09-17 09:27:00" },
+  { "user": "tashad", "bathroom_id": 14, "rating": 3, "note": "Ground floor, so it's everyone's default.", "created_at": "2026-09-17 16:49:00" },
+  { "user": "tashad", "bathroom_id": 19, "rating": 1, "note": "Out of everything. Soap, towels, hope.", "created_at": "2026-09-18 12:03:00" },
+
+  { "user": "ellak", "bathroom_id": 24, "rating": 5, "note": "Fifth floor E7 and nobody has discovered it.", "created_at": "2026-09-15 14:17:00" },
+  { "user": "ellak", "bathroom_id": 25, "rating": 4, "note": "Solid, a bit of a climb.", "created_at": "2026-09-16 11:08:00" },
+  { "user": "ellak", "bathroom_id": 1, "rating": 3, "note": "Right by the door so it sees everything.", "created_at": "2026-09-17 10:55:00" },
+  { "user": "ellak", "bathroom_id": 23, "rating": 3, "note": "Fine. Far.", "created_at": "2026-09-18 09:36:00" },
+  { "user": "ellak", "bathroom_id": 4, "rating": 2, "note": "Stall door gap you could wave through.", "created_at": "2026-09-18 15:21:00", "details": { "privacy": 1 } },
+
+  { "user": "devpatel", "bathroom_id": 22, "rating": 5, "note": "Research floor, always empty, always stocked.", "created_at": "2026-09-15 10:49:00" },
+  { "user": "devpatel", "bathroom_id": 16, "rating": 4, "note": "Big and bright, gets a rush at noon.", "created_at": "2026-09-16 13:12:00" },
+  { "user": "devpatel", "bathroom_id": 8, "rating": 4, "note": "Beside the kitchenette. Underrated.", "created_at": "2026-09-16 18:30:00" },
+  { "user": "devpatel", "bathroom_id": 12, "rating": 3, "note": "Does what it says.", "created_at": "2026-09-17 11:45:00" },
+  { "user": "devpatel", "bathroom_id": 7, "rating": 3, "note": "One of the taps has never worked.", "created_at": "2026-09-18 08:19:00" },
+  { "user": "devpatel", "bathroom_id": 20, "rating": 1, "note": "I'd rather walk to E5.", "created_at": "2026-09-18 16:40:00" },
+
+  { "user": "omarf", "bathroom_id": 10, "rating": 5, "note": "Fourth floor E5. Quiet wing, spotless, my go-to.", "created_at": "2026-09-15 13:33:00" },
+  { "user": "omarf", "bathroom_id": 22, "rating": 4, "note": "Good, but Dev oversold it.", "created_at": "2026-09-16 16:24:00" },
+  { "user": "omarf", "bathroom_id": 3, "rating": 4, "note": "Single stall on the ground floor is a gift.", "created_at": "2026-09-17 12:07:00" },
+  { "user": "omarf", "bathroom_id": 18, "rating": 3, "note": null, "created_at": "2026-09-17 19:52:00" },
+  { "user": "omarf", "bathroom_id": 26, "rating": 2, "note": "Lock still broken, two weeks later.", "created_at": "2026-09-18 11:29:00" },
+
+  { "user": "leowu", "bathroom_id": 21, "rating": 5, "note": "Fourth floor E7. The benchmark.", "created_at": "2026-09-15 15:58:00" },
+  { "user": "leowu", "bathroom_id": 27, "rating": 4, "note": "Top floor, worth the elevator wait.", "created_at": "2026-09-16 10:04:00" },
+  { "user": "leowu", "bathroom_id": 3, "rating": 4, "note": "Reliable. Busy at the top of the hour.", "created_at": "2026-09-17 14:41:00" },
+  { "user": "leowu", "bathroom_id": 14, "rating": 3, "note": "Everyone's first stop, and it shows.", "created_at": "2026-09-18 09:13:00" },
+  { "user": "leowu", "bathroom_id": 13, "rating": 2, "note": "Soap dispenser is decorative at this point.", "created_at": "2026-09-18 17:26:00" },
+
+  { "user": "yusufb", "bathroom_id": 8, "rating": 5, "note": "E5 fourth floor. Never once had to wait.", "created_at": "2026-09-15 17:11:00" },
+  { "user": "yusufb", "bathroom_id": 13, "rating": 4, "note": "Sixth floor and nobody goes there. That's the feature.", "created_at": "2026-09-16 14:35:00" },
+  { "user": "yusufb", "bathroom_id": 21, "rating": 4, "note": "Good. Not the legend people claim.", "created_at": "2026-09-17 15:19:00" },
+  { "user": "yusufb", "bathroom_id": 23, "rating": 3, "note": "Long walk, average payoff.", "created_at": "2026-09-18 10:47:00" },
+  { "user": "yusufb", "bathroom_id": 27, "rating": 3, "note": "Cold. Otherwise fine.", "created_at": "2026-09-18 18:02:00" }
+]
