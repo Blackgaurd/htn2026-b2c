@@ -7,7 +7,20 @@ alwaysApply: false
 ## This project
 
 Bun fullstack app: one process serves the React frontend and the JSON API.
-Entry point is `server/index.ts`. Run with `bun dev`. Sample rows: `bun run db:seed`.
+Entry point is `server/index.ts`. Run with `bun dev`. On a fresh clone the tables must
+be created first with `bun run db:push` — the schema is NOT created at server boot.
+Sample rows: `bun run db:seed`.
+
+Data access goes through Drizzle ORM over `bun:sqlite`:
+
+- `server/schema.ts` is the single source of truth for the database. Edit it, then
+  `bun run db:push` to apply — never hand-write DDL or `ALTER TABLE`.
+- Queries stay synchronous (`.all()` / `.get()` / `.run()`). Don't make handlers async
+  just to query.
+- `server/contract.ts` is a type-only guard asserting the Drizzle row still satisfies
+  `Item` in `shared/api.ts`. Keep it imported from `server/index.ts`.
+- `@libsql/client` is a devDependency used only by the `drizzle-kit` CLI. Never import
+  it from application code.
 
 Localhost-only by design: no deploy target, no build/static-export step, no mock or
 fixture layer. Always real data from `data.db`. Don't add any of those back without

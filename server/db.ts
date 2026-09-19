@@ -1,36 +1,21 @@
 /**
- * SQLite connection + schema. Backend territory — the frontend never imports this.
+ * Database connection. Backend territory — the frontend never imports this.
  *
- * `bun:sqlite` is synchronous: no await, no connection pool, no ORM.
+ * `bun:sqlite` provides the driver; Drizzle wraps it for typed queries. Both are
+ * synchronous, so handlers use `.all()` / `.get()` / `.run()` and never await.
+ *
+ * The schema lives in `schema.ts` and is applied with `bun run db:push` — it is
+ * NOT created here, so a fresh clone must push before the first request.
  */
 
 import { Database } from "bun:sqlite";
+import { drizzle } from "drizzle-orm/bun-sqlite";
+import * as schema from "./schema";
 
-const DB_PATH = process.env.DB_PATH ?? "data.db";
-
-export const db = new Database(DB_PATH, { create: true });
+const sqlite = new Database(process.env.DB_PATH ?? "data.db", { create: true });
 
 // WAL lets reads and writes overlap instead of blocking each other.
-db.exec("PRAGMA journal_mode = WAL");
-db.exec("PRAGMA foreign_keys = ON");
+sqlite.exec("PRAGMA journal_mode = WAL");
+sqlite.exec("PRAGMA foreign_keys = ON");
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS items (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    title      TEXT    NOT NULL,
-    done       INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT    NOT NULL DEFAULT (datetime('now'))
-  )
-`);
-
-/**
- * SQLite has no boolean type — `done` comes back as 0 or 1. Every query below
- * selects into this shape, and `toItem` in routes.ts converts it to the
- * `Item` the contract promises.
- */
-export type ItemRow = {
-  id: number;
-  title: string;
-  done: number;
-  created_at: string;
-};
+export const db = drizzle({ client: sqlite, schema });

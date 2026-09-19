@@ -4,9 +4,13 @@
  * Real data in real SQLite — just pre-made, so a fresh clone has something on
  * screen and the demo doesn't open to an empty list. Safe to re-run; it clears
  * the table first.
+ *
+ * Requires the table to exist — run `bun run db:push` first.
  */
 
+import { count, sql } from "drizzle-orm";
 import { db } from "./db";
+import { items } from "./schema";
 
 const SAMPLE = [
   "Pitch practice run",
@@ -15,14 +19,11 @@ const SAMPLE = [
   "Record the demo video",
 ];
 
-db.exec("DELETE FROM items");
-db.exec("DELETE FROM sqlite_sequence WHERE name = 'items'");
+db.delete(items).run();
+db.run(sql`DELETE FROM sqlite_sequence WHERE name = 'items'`);
+db.insert(items)
+  .values(SAMPLE.map(title => ({ title })))
+  .run();
 
-const insert = db.query<unknown, [string]>("INSERT INTO items (title) VALUES (?)");
-const seedAll = db.transaction((titles: string[]) => {
-  for (const title of titles) insert.run(title);
-});
-seedAll(SAMPLE);
-
-const { count } = db.query<{ count: number }, []>("SELECT COUNT(*) AS count FROM items").get()!;
-console.log(`seeded ${count} items into ${process.env.DB_PATH ?? "data.db"}`);
+const [row] = db.select({ value: count() }).from(items).all();
+console.log(`seeded ${row?.value ?? 0} items into ${process.env.DB_PATH ?? "data.db"}`);

@@ -1,7 +1,7 @@
 # htn2026-b2c
 
-Bun + React + shadcn/ui + `bun:sqlite`. One process serves the frontend and the API.
-Mobile-shaped UI, demoed from a laptop browser.
+Bun + React + shadcn/ui + Drizzle ORM over `bun:sqlite`. One process serves the
+frontend and the API. Mobile-shaped UI, demoed from a laptop browser.
 
 Localhost only — not built to deploy, and always running on real data.
 
@@ -9,15 +9,20 @@ Localhost only — not built to deploy, and always running on real data.
 
 ```bash
 bun install
+bun run db:push    # create/update the tables — REQUIRED on a fresh clone
 bun run db:seed    # optional: sample rows so the list isn't empty
 bun dev            # http://localhost:3000
 ```
+
+`db:push` is not optional the first time. The schema is no longer created when the
+server boots, so without it every query fails with `no such table: items`.
 
 Other scripts:
 
 ```bash
 bun run typecheck  # tsc --noEmit — catches contract drift between the two halves
-bun run db:reset   # delete data.db and its WAL sidecars
+bun run db:studio  # Drizzle Studio: browse/edit data.db in a GUI
+bun run db:reset   # delete data.db and its WAL sidecars (stop the server first)
 ```
 
 ## Who owns what
@@ -27,8 +32,10 @@ The split is by **directory**, so two people almost never touch the same file.
 ```
 shared/api.ts     ← BOTH. The contract. Agree early, change loudly.
 server/           ← backend person
-  db.ts             schema + connection
+  schema.ts         Drizzle table definitions — single source of truth for the DB
+  db.ts             connection (bun:sqlite wrapped in Drizzle)
   routes.ts         handlers  ← you live here
+  contract.ts       type-only guard: schema must still satisfy shared/api.ts
   index.ts          wiring (thin; edit only when adding a new path)
   seed.ts           sample rows
 src/              ← frontend person
@@ -80,8 +87,18 @@ Steps 2 and 3 are independent once step 1 is merged.
   the DB lives in `server/`.
 - **`data.db` is gitignored**, along with the `-wal`/`-shm` sidecars WAL mode creates.
   Everyone gets their own local DB — schema is code, data is not.
-- **Schema changes** aren't migrated. `CREATE TABLE IF NOT EXISTS` won't alter an existing
-  table, so after editing `server/db.ts` run `bun run db:reset && bun run db:seed`.
+- **Schema changes:** edit `server/schema.ts`, then `bun run db:push`. The table is altered
+  in place and existing rows survive — no migration files, no reset. If the change could
+  lose data (new `NOT NULL` column, dropped column), drizzle-kit asks for confirmation, so
+  run it in a real terminal rather than piping its output.
+- **Drizzle wraps `bun:sqlite`; it doesn't replace it.** `server/db.ts` still opens the
+  `Database` and sets the WAL pragma. Queries stay synchronous — `.all()` / `.get()` /
+  `.run()`, no `await`.
+- **`done` is a real boolean** end to end. SQLite stores 0/1, but the column is declared
+  `integer("done", { mode: "boolean" })`, so nothing in the backend converts it by hand.
+- **`@libsql/client` is a devDependency for the CLI only.** `drizzle-kit` needs its own
+  driver to connect (it can't use `bun:sqlite`, and Bun can't load `better-sqlite3`). The
+  app itself never imports it.
 - **`PhoneFrame`** is demo chrome only (390×844, iPhone 14 Pro). It auto-scales down on
   short laptop screens. Delete it from `App.tsx` for a full-bleed layout.
 - **No SSR, no file-based routing.** Client-rendered. Need multiple screens? `useState`

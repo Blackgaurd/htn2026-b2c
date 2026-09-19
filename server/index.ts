@@ -9,6 +9,7 @@
 import { serve } from "bun";
 import index from "../src/index.html";
 import { routePatterns } from "../shared/api";
+import "./contract"; // type-only: fails typecheck if the schema drifts from shared/api.ts
 import { handlers } from "./routes";
 
 const server = serve({
