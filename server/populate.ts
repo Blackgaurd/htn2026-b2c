@@ -2,7 +2,7 @@
  * Load `fixtures/*.json` into the real database: `bun run db:populate`.
  *
  * This is NOT the mock data and NOT the demo. `src/mocks/data.ts` is fixtures for
- * the browser, `shared/demo.ts` is the demo everybody ships with — both are
+ * the browser, `shared/demo.ts` is the demo everybody ships with; both are
  * TypeScript and both are read by two consumers at once. The files under
  * `fixtures/` are plain JSON, read only by this script, and exist so the live
  * `data.db` can be filled with extra people and opinions without touching either.
@@ -15,12 +15,12 @@
  *   bookmarks and outgoing follows are replaced; not found, they're inserted. Run
  *   it twice and the database looks the same as after running it once.
  * - **Validated before it writes.** Every row is checked against the same rules the
- *   API enforces — `canUse()` for the gender gate, `detailKeysFor()` for which
- *   detail ratings a washroom can even have — and a bad row aborts the whole run
+ *   API enforces (`canUse()` for the gender gate, `detailKeysFor()` for which
+ *   detail ratings a washroom can even have) and a bad row aborts the whole run
  *   naming itself. A fixture that would look broken on screen never reaches SQLite.
  *
  * `position` is derived from file order within each (user, bucket) group, exactly
- * like `shared/demo.ts`: earlier line means better. No score is written anywhere —
+ * like `shared/demo.ts`: earlier line means better. No score is written anywhere;
  * it's computed from position on read (see `scoreForPosition()`).
  *
  * Requires the tables to exist (`bun run db:push`) and the catalogue to be loaded
@@ -60,7 +60,7 @@ type UserFixture = {
 };
 
 type ReviewFixture = {
-  /** Username, not id — ids are assigned by SQLite and differ between databases. */
+  /** Username, not id: ids are assigned by SQLite and differ between databases. */
   user: string;
   bathroom_id: number;
   rating: Rating;
@@ -87,7 +87,7 @@ const BOOKMARKS = bookmarkFixtures as BookmarkFixture[];
 class FixtureError extends Error {}
 
 function fail(what: string, why: string): never {
-  throw new FixtureError(`${what} — ${why}`);
+  throw new FixtureError(`${what}: ${why}`);
 }
 
 /**
@@ -104,7 +104,7 @@ function detailsFor(rating: Rating, type: WashroomType, overrides: ReviewDetails
   });
   for (const [key, value] of Object.entries(overrides) as [ReviewDetailKey, Rating][]) {
     if (!keys.includes(key)) {
-      fail(`detail "${key}"`, `not asked about in a ${type} washroom — see detailKeysFor()`);
+      fail(`detail "${key}"`, `not asked about in a ${type} washroom; see detailKeysFor()`);
     }
     details[key] = value;
   }
@@ -134,7 +134,7 @@ function populate(): Summary {
     );
 
     if (catalogue.size === 0) {
-      fail("the catalogue is empty", "run `bun run db:catalogue` first — reviews point at real ids");
+      fail("the catalogue is empty", "run `bun run db:catalogue` first; reviews point at real ids");
     }
 
     const stored = tx
@@ -186,7 +186,7 @@ function populate(): Summary {
     const userId = (username: string, where: string): number => {
       const id = idByUsername.get(username);
       if (id === undefined) {
-        fail(`${where} names "${username}"`, "no such user — add them to users.json, or fix the spelling");
+        fail(`${where} names "${username}"`, "no such user. Add them to users.json, or fix the spelling");
       }
       return id;
     };
@@ -197,7 +197,7 @@ function populate(): Summary {
       return pref;
     };
 
-    // Replace what these users had. Only fixture users are touched — demo accounts
+    // Replace what these users had. Only fixture users are touched, demo accounts
     // and anything registered by hand are left exactly as they were.
     const fixtureIds = [...fixtureUsernames].map(name => userId(name, "users.json"));
     tx.delete(reviews).where(inArray(reviews.user_id, fixtureIds)).run();
@@ -225,11 +225,11 @@ function populate(): Summary {
 
       const pref = prefOf(fixture.user, where);
       if (!canUse(pref, type)) {
-        fail(where, `a "${pref}" user can't use a "${type}" washroom — the gate would reject this`);
+        fail(where, `a "${pref}" user can't use a "${type}" washroom; the gate would reject this`);
       }
 
       const pair = `${id}:${fixture.bathroom_id}`;
-      if (seenPairs.has(pair)) fail(where, "reviewed twice — one review per user per bathroom");
+      if (seenPairs.has(pair)) fail(where, "reviewed twice; one review per user per bathroom");
       seenPairs.add(pair);
 
       // Position is file order within the (user, bucket) group: earlier is better.
@@ -261,9 +261,9 @@ function populate(): Summary {
 
     // ─── Follows ────────────────────────────────────────────────────────────
 
-    // Either side may be a demo account, which only exists once `db:seed` has run —
-    // a missing seed rather than a broken fixture, so an unknown name is a skip with
-    // a warning, not an abort. Rows in the demo → fixture direction are the point:
+    // Either side may be a demo account, which only exists once `db:seed` has run.
+    // That's a missing seed rather than a broken fixture, so an unknown name is a
+    // skip with a warning, not an abort. Rows in the demo → fixture direction are the point:
     // without them the new people never appear in an existing account's feed.
     const skippedFollows: string[] = [];
     const seenFollows = new Set<string>();
@@ -303,7 +303,7 @@ function populate(): Summary {
 
       const pref = prefOf(username, where);
       if (!canUse(pref, type)) {
-        fail(where, `a "${pref}" user can't save a "${type}" washroom — the gate would reject this`);
+        fail(where, `a "${pref}" user can't save a "${type}" washroom; the gate would reject this`);
       }
       return { user_id: userId(username, where), bathroom_id };
     });
@@ -327,7 +327,7 @@ try {
 } catch (error) {
   if (!(error instanceof FixtureError)) throw error;
   console.error(`fixtures: ${error.message}`);
-  console.error("nothing was written — the transaction rolled back.");
+  console.error("nothing was written: the transaction rolled back.");
   process.exit(1);
 }
 
