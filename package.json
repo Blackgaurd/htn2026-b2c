@@ -8,6 +8,7 @@
     "typecheck": "tsc --noEmit",
     "db:push": "bun --bun drizzle-kit push",
     "db:studio": "bun --bun drizzle-kit studio",
+    "db:catalogue": "bun server/catalogue.ts",
     "db:seed": "bun server/seed.ts",
     "db:reset": "rm -f data.db data.db-wal data.db-shm"
   },
