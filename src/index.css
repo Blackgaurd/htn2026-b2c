@@ -1,4 +1,37 @@
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap");
 @import "../styles/globals.css";
+
+/*
+ * The püpi palette, as Tailwind v4 theme tokens.
+ *
+ * The screens reach for most of these as literals through `src/lib/display.ts`
+ * instead of class names, because the design leans on gradients, alpha suffixes
+ * and inline bar fills that a utility class can't express. The tokens are here so
+ * anything new can use `bg-periwinkle` and land on the same colour.
+ */
+@theme {
+  --color-bg: #f7f5f1;
+  --color-card: #ffffff;
+  --color-charcoal: #1c1c2e;
+  --color-charcoal-muted: #6b6b7e;
+  --color-periwinkle: #7b8cde;
+  --color-periwinkle-light: #eef0fb;
+  --color-periwinkle-mid: #c5cbef;
+  --color-mint: #5ec4a8;
+  --color-mint-light: #e6f7f3;
+  --color-line: #eceae4;
+  --color-mens: #5b8fe8;
+  --color-mens-bg: #ebf1fd;
+  --color-womens: #e87db8;
+  --color-womens-bg: #fde8f3;
+  --color-allgender: #9b78d4;
+  --color-allgender-bg: #f0ebf9;
+  --color-score-great: #3dbf82;
+  --color-score-good: #5b8fe8;
+  --color-score-ok: #f5a623;
+  --color-score-low: #adadbe;
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+}
 
 @layer base {
   :root {
@@ -6,7 +39,28 @@
   }
 
   body {
-    @apply m-0 min-h-screen min-w-[320px] bg-muted/40 text-foreground;
+    @apply m-0 min-h-screen min-w-[320px];
+    background: #e8e5de;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button {
+    font-family: inherit;
+  }
+}
+
+/* Scrollable regions inside the phone: real scrolling, no visible scrollbar. */
+.phone-scroll::-webkit-scrollbar {
+  display: none;
+}
+.phone-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+@keyframes pupi-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 
